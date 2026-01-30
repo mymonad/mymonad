@@ -123,3 +123,67 @@ func TestIdentitySigningCapability(t *testing.T) {
 		t.Error("Signature should not verify for wrong message")
 	}
 }
+
+func TestIdentityEncryptionKey(t *testing.T) {
+	identity, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity failed: %v", err)
+	}
+
+	if identity.EncryptionPrivate == nil {
+		t.Error("EncryptionPrivate should not be nil")
+	}
+	if identity.EncryptionPublic == nil {
+		t.Error("EncryptionPublic should not be nil")
+	}
+	if len(identity.EncryptionPrivate) != 32 {
+		t.Errorf("EncryptionPrivate should be 32 bytes, got %d", len(identity.EncryptionPrivate))
+	}
+	if len(identity.EncryptionPublic) != 32 {
+		t.Errorf("EncryptionPublic should be 32 bytes, got %d", len(identity.EncryptionPublic))
+	}
+}
+
+func TestX25519KeyExchange(t *testing.T) {
+	alice, _ := GenerateIdentity()
+	bob, _ := GenerateIdentity()
+
+	// Both should derive the same shared secret
+	sharedAlice, err := alice.SharedSecret(bob.EncryptionPublic)
+	if err != nil {
+		t.Fatalf("Alice SharedSecret failed: %v", err)
+	}
+
+	sharedBob, err := bob.SharedSecret(alice.EncryptionPublic)
+	if err != nil {
+		t.Fatalf("Bob SharedSecret failed: %v", err)
+	}
+
+	if string(sharedAlice) != string(sharedBob) {
+		t.Error("Shared secrets should match")
+	}
+}
+
+func TestSharedSecretInvalidPeerKey(t *testing.T) {
+	identity, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity failed: %v", err)
+	}
+
+	// Test with wrong length peer public key
+	invalidKeys := [][]byte{
+		nil,
+		{},
+		make([]byte, 16),
+		make([]byte, 31),
+		make([]byte, 33),
+		make([]byte, 64),
+	}
+
+	for _, invalidKey := range invalidKeys {
+		_, err := identity.SharedSecret(invalidKey)
+		if err == nil {
+			t.Errorf("SharedSecret should fail for key of length %d", len(invalidKey))
+		}
+	}
+}
