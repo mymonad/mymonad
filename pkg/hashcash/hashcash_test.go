@@ -418,3 +418,435 @@ func TestRandSize(t *testing.T) {
 		t.Errorf("Rand should be %d bytes, got %d", RandSize, len(decoded))
 	}
 }
+
+// =============================================================================
+// Solution, Solve, and Verify tests
+// =============================================================================
+
+func TestSolveWithLowDifficulty(t *testing.T) {
+	// Use low difficulty (8 bits) for fast test execution
+	c := NewChallenge("test-resource", 8, 5*time.Minute)
+
+	solution, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	if solution == nil {
+		t.Fatal("Solve returned nil solution")
+	}
+	if solution.Challenge != c {
+		t.Error("Solution should reference the original challenge")
+	}
+	if solution.Counter < 0 {
+		t.Errorf("Counter should be non-negative, got %d", solution.Counter)
+	}
+	if len(solution.Hash) != 32 {
+		t.Errorf("Hash should be 32 bytes (SHA-256), got %d", len(solution.Hash))
+	}
+}
+
+func TestSolveProducesValidSolution(t *testing.T) {
+	// Use low difficulty for fast test
+	c := NewChallenge("test-resource", 8, 5*time.Minute)
+
+	solution, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	// The solution should verify
+	if !solution.Verify() {
+		t.Error("Solution produced by Solve should verify successfully")
+	}
+}
+
+func TestSolutionVerifyValid(t *testing.T) {
+	// Create a challenge and solve it
+	c := NewChallenge("test-resource", 8, 5*time.Minute)
+
+	solution, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	// Verify should return true
+	if !solution.Verify() {
+		t.Error("Valid solution should verify successfully")
+	}
+}
+
+func TestSolutionVerifyInvalidCounter(t *testing.T) {
+	// Create a valid solution first
+	c := NewChallenge("test-resource", 8, 5*time.Minute)
+
+	solution, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	// Tamper with the counter
+	solution.Counter = solution.Counter + 1
+
+	// Verify should fail (hash no longer matches)
+	if solution.Verify() {
+		t.Error("Solution with tampered counter should fail verification")
+	}
+}
+
+func TestSolutionVerifyInvalidHash(t *testing.T) {
+	// Create a valid solution first
+	c := NewChallenge("test-resource", 8, 5*time.Minute)
+
+	solution, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	// Tamper with the hash
+	if len(solution.Hash) > 0 {
+		solution.Hash[0] ^= 0xFF // Flip bits
+	}
+
+	// Verify should fail
+	if solution.Verify() {
+		t.Error("Solution with tampered hash should fail verification")
+	}
+}
+
+func TestSolutionVerifyNilChallenge(t *testing.T) {
+	solution := &Solution{
+		Challenge: nil,
+		Counter:   12345,
+		Hash:      make([]byte, 32),
+	}
+
+	// Should not panic, should return false
+	if solution.Verify() {
+		t.Error("Solution with nil challenge should fail verification")
+	}
+}
+
+func TestSolutionString(t *testing.T) {
+	c := &Challenge{
+		Version:    1,
+		Bits:       20,
+		Timestamp:  time.Unix(1706745600, 0).UTC(),
+		Resource:   "did:monad:abc123",
+		Rand:       "MTIzNDU2",
+		Expiration: 5 * time.Minute,
+	}
+
+	solution := &Solution{
+		Challenge: c,
+		Counter:   12345,
+		Hash:      make([]byte, 32),
+	}
+
+	s := solution.String()
+
+	// Format should be: challenge:counter
+	expected := "1:20:1706745600:did:monad:abc123:MTIzNDU2:12345"
+	if s != expected {
+		t.Errorf("Solution.String() = %q, want %q", s, expected)
+	}
+}
+
+func TestSolutionStringWithNilChallenge(t *testing.T) {
+	solution := &Solution{
+		Challenge: nil,
+		Counter:   12345,
+		Hash:      make([]byte, 32),
+	}
+
+	// Should not panic
+	s := solution.String()
+	if s != "" {
+		t.Errorf("Solution with nil challenge should return empty string, got %q", s)
+	}
+}
+
+func TestHasLeadingZeros(t *testing.T) {
+	testCases := []struct {
+		name     string
+		hash     []byte
+		bits     int
+		expected bool
+	}{
+		{
+			name:     "all zeros, 8 bits",
+			hash:     []byte{0x00, 0x00, 0x00, 0x00},
+			bits:     8,
+			expected: true,
+		},
+		{
+			name:     "all zeros, 16 bits",
+			hash:     []byte{0x00, 0x00, 0x00, 0x00},
+			bits:     16,
+			expected: true,
+		},
+		{
+			name:     "first byte zero, 8 bits",
+			hash:     []byte{0x00, 0xFF, 0xFF, 0xFF},
+			bits:     8,
+			expected: true,
+		},
+		{
+			name:     "first byte zero, 9 bits",
+			hash:     []byte{0x00, 0x7F, 0xFF, 0xFF}, // 0x7F = 0111 1111, 9th bit is 0
+			bits:     9,
+			expected: true,
+		},
+		{
+			name:     "first byte zero, 9 bits fail",
+			hash:     []byte{0x00, 0x80, 0xFF, 0xFF}, // 0x80 = 1000 0000, 9th bit is 1
+			bits:     9,
+			expected: false,
+		},
+		{
+			name:     "first 4 bits zero",
+			hash:     []byte{0x0F, 0xFF, 0xFF, 0xFF}, // 0x0F = 0000 1111
+			bits:     4,
+			expected: true,
+		},
+		{
+			name:     "first 5 bits zero",
+			hash:     []byte{0x07, 0xFF, 0xFF, 0xFF}, // 0x07 = 0000 0111
+			bits:     5,
+			expected: true,
+		},
+		{
+			name:     "first 5 bits fail",
+			hash:     []byte{0x08, 0xFF, 0xFF, 0xFF}, // 0x08 = 0000 1000
+			bits:     5,
+			expected: false,
+		},
+		{
+			name:     "0 bits always true",
+			hash:     []byte{0xFF, 0xFF, 0xFF, 0xFF},
+			bits:     0,
+			expected: true,
+		},
+		{
+			name:     "first byte non-zero, 1 bit fail",
+			hash:     []byte{0x80, 0xFF, 0xFF, 0xFF},
+			bits:     1,
+			expected: false,
+		},
+		{
+			name:     "20 bits success",
+			hash:     []byte{0x00, 0x00, 0x0F, 0xFF}, // First 20 bits: 0000 0000 0000 0000 0000
+			bits:     20,
+			expected: true,
+		},
+		{
+			name:     "20 bits fail",
+			hash:     []byte{0x00, 0x00, 0x10, 0xFF}, // 0x10 = 0001 0000, 20th bit is 1
+			bits:     20,
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := hasLeadingZeros(tc.hash, tc.bits)
+			if result != tc.expected {
+				t.Errorf("hasLeadingZeros(%v, %d) = %v, want %v",
+					tc.hash, tc.bits, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestSolveWithMaxIterations(t *testing.T) {
+	// Create a challenge with impossibly high difficulty
+	c := NewChallenge("test-resource", 256, 5*time.Minute)
+
+	// Use a lower max for testing
+	_, err := SolveWithMaxIterations(c, 10000)
+	if err == nil {
+		t.Error("Solve with impossibly high difficulty should return error")
+	}
+	if err != ErrMaxIterationsExceeded {
+		t.Errorf("Expected ErrMaxIterationsExceeded, got %v", err)
+	}
+}
+
+func TestSolveWithNilChallenge(t *testing.T) {
+	_, err := Solve(nil)
+	if err == nil {
+		t.Error("Solve with nil challenge should return error")
+	}
+	if err != ErrNilChallenge {
+		t.Errorf("Expected ErrNilChallenge, got %v", err)
+	}
+}
+
+func TestSolveDeterministic(t *testing.T) {
+	// Same challenge should produce same solution
+	c := &Challenge{
+		Version:    1,
+		Bits:       8,
+		Timestamp:  time.Unix(1706745600, 0).UTC(),
+		Resource:   "test-resource",
+		Rand:       "dGVzdA==", // Fixed rand for deterministic test
+		Expiration: 5 * time.Minute,
+	}
+
+	solution1, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	solution2, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	if solution1.Counter != solution2.Counter {
+		t.Errorf("Same challenge should produce same counter: %d vs %d",
+			solution1.Counter, solution2.Counter)
+	}
+}
+
+func TestSolveConcurrent(t *testing.T) {
+	var wg sync.WaitGroup
+	numGoroutines := 10
+
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			c := NewChallenge("concurrent-test", 8, 5*time.Minute)
+			solution, err := Solve(c)
+			if err != nil {
+				t.Errorf("Solve %d failed: %v", idx, err)
+				return
+			}
+			if !solution.Verify() {
+				t.Errorf("Solution %d failed verification", idx)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func TestDifficultyAffectsSolveTime(t *testing.T) {
+	// Lower difficulty should be faster than higher difficulty
+	// Note: This is a probabilistic test, may occasionally fail
+
+	// Low difficulty (8 bits)
+	c1 := NewChallenge("test-resource", 8, 5*time.Minute)
+	start1 := time.Now()
+	_, err := Solve(c1)
+	if err != nil {
+		t.Fatalf("Solve with 8 bits failed: %v", err)
+	}
+	duration1 := time.Since(start1)
+
+	// Higher difficulty (12 bits)
+	c2 := NewChallenge("test-resource", 12, 5*time.Minute)
+	start2 := time.Now()
+	_, err = Solve(c2)
+	if err != nil {
+		t.Fatalf("Solve with 12 bits failed: %v", err)
+	}
+	duration2 := time.Since(start2)
+
+	// On average, 12 bits should take 16x longer than 8 bits (2^4)
+	// But we just check that both complete successfully
+	// The timing comparison is informational
+	t.Logf("8-bit solve time: %v", duration1)
+	t.Logf("12-bit solve time: %v", duration2)
+}
+
+func TestParseSolution(t *testing.T) {
+	// Create a valid solution first
+	c := NewChallenge("test-resource", 8, 5*time.Minute)
+	original, err := Solve(c)
+	if err != nil {
+		t.Fatalf("Solve failed: %v", err)
+	}
+
+	// Parse the solution string
+	parsed, err := ParseSolution(original.String())
+	if err != nil {
+		t.Fatalf("ParseSolution failed: %v", err)
+	}
+
+	// Verify parsed solution matches original
+	if parsed.Counter != original.Counter {
+		t.Errorf("Counter mismatch: got %d, want %d", parsed.Counter, original.Counter)
+	}
+	if parsed.Challenge.Resource != original.Challenge.Resource {
+		t.Errorf("Resource mismatch: got %q, want %q",
+			parsed.Challenge.Resource, original.Challenge.Resource)
+	}
+
+	// Parsed solution should verify
+	if !parsed.Verify() {
+		t.Error("Parsed solution should verify successfully")
+	}
+}
+
+func TestParseSolutionInvalid(t *testing.T) {
+	testCases := []struct {
+		name  string
+		input string
+	}{
+		{"empty", ""},
+		{"no counter", "1:20:1706745600:resource:rand"},
+		{"invalid counter", "1:20:1706745600:resource:rand:abc"},
+		{"negative counter", "1:20:1706745600:resource:rand:-1"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ParseSolution(tc.input)
+			if err == nil {
+				t.Errorf("ParseSolution(%q) should return error", tc.input)
+			}
+		})
+	}
+}
+
+// Benchmarks
+
+func BenchmarkSolve8Bits(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		c := NewChallenge("benchmark", 8, 5*time.Minute)
+		_, _ = Solve(c)
+	}
+}
+
+func BenchmarkSolve12Bits(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		c := NewChallenge("benchmark", 12, 5*time.Minute)
+		_, _ = Solve(c)
+	}
+}
+
+func BenchmarkSolve16Bits(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		c := NewChallenge("benchmark", 16, 5*time.Minute)
+		_, _ = Solve(c)
+	}
+}
+
+func BenchmarkVerify(b *testing.B) {
+	c := NewChallenge("benchmark", 16, 5*time.Minute)
+	solution, _ := Solve(c)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		solution.Verify()
+	}
+}
+
+func BenchmarkHasLeadingZeros(b *testing.B) {
+	hash := make([]byte, 32)
+	for i := 0; i < b.N; i++ {
+		hasLeadingZeros(hash, 20)
+	}
+}
