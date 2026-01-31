@@ -72,10 +72,8 @@ func (g *Generator) Generate(m *monad.Monad) *MonadSignature {
 	}
 
 	// Compute LSH signature from vector
-	sig := g.lsh.Hash(snapshot.Vector)
-
-	// Handle empty signature (indicates hash failure)
-	if sig.Size == 0 {
+	sig, err := g.lsh.Hash(snapshot.Vector)
+	if err != nil {
 		return nil
 	}
 

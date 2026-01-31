@@ -29,6 +29,9 @@ const (
 // more specific matching but fewer peers per bucket.
 const DefaultBucketSize = 4
 
+// DiscoveryErrorCallback is called when non-fatal errors occur during discovery.
+type DiscoveryErrorCallback func(err error)
+
 // Discovery manages LSH-based peer discovery through the DHT.
 // It publishes LSH signature buckets to the DHT and discovers peers
 // with similar signatures by querying the same bucket keys.
@@ -38,14 +41,24 @@ type Discovery struct {
 	visibility VisibilityMode
 	signature  *lsh.MonadSignature
 	bucketSize int
+	onError    DiscoveryErrorCallback
 	mu         sync.RWMutex
 }
 
+// ErrNilHost is returned when the host is nil.
+var ErrNilHost = errors.New("discovery: host cannot be nil")
+
+// ErrNilDHT is returned when the DHT is nil.
+var ErrNilDHT = errors.New("discovery: dht cannot be nil")
+
 // NewDiscovery creates a new Discovery instance.
-// Returns nil if host or dht is nil.
-func NewDiscovery(host *Host, dht *DHT) *Discovery {
-	if host == nil || dht == nil {
-		return nil
+// Returns an error if host or dht is nil.
+func NewDiscovery(host *Host, dht *DHT) (*Discovery, error) {
+	if host == nil {
+		return nil, ErrNilHost
+	}
+	if dht == nil {
+		return nil, ErrNilDHT
 	}
 
 	return &Discovery{
@@ -53,7 +66,7 @@ func NewDiscovery(host *Host, dht *DHT) *Discovery {
 		dht:        dht,
 		visibility: VisibilityActive,
 		bucketSize: DefaultBucketSize,
-	}
+	}, nil
 }
 
 // SetVisibility changes the visibility mode.
@@ -76,6 +89,14 @@ func (d *Discovery) Signature() *lsh.MonadSignature {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.signature
+}
+
+// SetErrorCallback sets a callback function for non-fatal discovery errors.
+// This is useful for logging DHT errors that don't prevent discovery from continuing.
+func (d *Discovery) SetErrorCallback(cb DiscoveryErrorCallback) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.onError = cb
 }
 
 // UpdateSignature sets the LSH signature and publishes buckets to DHT if visibility allows.
@@ -156,7 +177,13 @@ func (d *Discovery) FindSimilar(ctx context.Context, count int) ([]peer.AddrInfo
 		key := BucketToDHTKey(prefix, value)
 		providers, err := d.dht.FindProviders(ctx, key, count)
 		if err != nil {
-			// Log error but continue with other buckets
+			// Report error via callback but continue with other buckets
+			d.mu.RLock()
+			onError := d.onError
+			d.mu.RUnlock()
+			if onError != nil {
+				onError(fmt.Errorf("FindProviders failed for bucket %d (key: %s): %w", prefix, key, err))
+			}
 			continue
 		}
 

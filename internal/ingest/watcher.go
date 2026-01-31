@@ -44,17 +44,24 @@ type FileEvent struct {
 // ErrorCallback is called when an error occurs during watching.
 type ErrorCallback func(err error)
 
+// SkippedPath represents a path that was skipped during initial scan.
+type SkippedPath struct {
+	Path string
+	Err  error
+}
+
 // Watcher monitors a directory for file changes.
 type Watcher struct {
 	root     string
 	events   chan<- FileEvent
 	fsw      *fsnotify.Watcher
 	excludes []string
-	mu       sync.RWMutex // protects excludes
+	mu       sync.RWMutex // protects excludes and skippedPaths
 
 	// Error handling
 	onError      ErrorCallback
 	droppedCount atomic.Int64
+	skippedPaths []SkippedPath
 
 	// Cancellation
 	done chan struct{}
@@ -90,17 +97,22 @@ func NewWatcher(root string, events chan<- FileEvent) (*Watcher, error) {
 	}
 
 	w := &Watcher{
-		root:     root,
-		events:   events,
-		fsw:      fsw,
-		excludes: append([]string(nil), DefaultExcludes...), // defensive copy
-		done:     make(chan struct{}),
+		root:         root,
+		events:       events,
+		fsw:          fsw,
+		excludes:     append([]string(nil), DefaultExcludes...), // defensive copy
+		done:         make(chan struct{}),
+		skippedPaths: make([]SkippedPath, 0),
 	}
 
 	// Add root and subdirectories
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil // Skip inaccessible paths
+			// Track skipped paths instead of silently ignoring
+			w.mu.Lock()
+			w.skippedPaths = append(w.skippedPaths, SkippedPath{Path: path, Err: err})
+			w.mu.Unlock()
+			return nil
 		}
 		if info.IsDir() {
 			if w.shouldExclude(path) {
@@ -134,6 +146,17 @@ func (w *Watcher) SetErrorCallback(cb ErrorCallback) {
 // DroppedEventCount returns the number of events that were dropped due to channel full.
 func (w *Watcher) DroppedEventCount() int64 {
 	return w.droppedCount.Load()
+}
+
+// SkippedPaths returns paths that were skipped during initial scan due to errors.
+// This is useful for detecting permission issues or other access problems.
+func (w *Watcher) SkippedPaths() []SkippedPath {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+	// Return a copy to prevent external modification
+	result := make([]SkippedPath, len(w.skippedPaths))
+	copy(result, w.skippedPaths)
+	return result
 }
 
 // shouldExclude checks if a path should be excluded.

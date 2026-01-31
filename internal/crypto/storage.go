@@ -75,21 +75,47 @@ func SaveIdentity(id *Identity, path, passphrase string) error {
 	// Encrypt
 	ciphertext := gcm.Seal(nil, nonce, data, nil)
 
-	// Write: salt + nonce + ciphertext
-	f, err := os.Create(path)
+	// Atomic write: write to temp file, sync, then rename
+	// Temp file in same directory ensures rename is atomic on POSIX
+	tmpPath := path + ".tmp"
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("failed to create file: %w", err)
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
-	defer f.Close()
 
+	// Write: salt + nonce + ciphertext
 	if _, err := f.Write(salt); err != nil {
-		return err
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to write salt: %w", err)
 	}
 	if _, err := f.Write(nonce); err != nil {
-		return err
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to write nonce: %w", err)
 	}
 	if _, err := f.Write(ciphertext); err != nil {
-		return err
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to write ciphertext: %w", err)
+	}
+
+	// Sync to ensure data is flushed to disk before rename
+	if err := f.Sync(); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to sync file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Atomic rename (on POSIX, rename is atomic when source and dest are on same filesystem)
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil

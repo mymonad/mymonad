@@ -22,6 +22,9 @@ var (
 	// ErrInvalidChallenge is returned when the challenge cannot be parsed.
 	ErrInvalidChallenge = errors.New("attestation: invalid challenge format")
 
+	// ErrChallengeExpired is returned when the challenge has expired.
+	ErrChallengeExpired = errors.New("attestation: challenge has expired")
+
 	// ErrSignatureRequired is returned when a signature is missing.
 	ErrSignatureRequired = errors.New("attestation: signature required")
 
@@ -143,6 +146,11 @@ func NewAttestationResponse(peerID peer.ID, version string, challenge string) (*
 	parsedChallenge, err := hashcash.ParseChallenge(challenge)
 	if err != nil {
 		return nil, ErrInvalidChallenge
+	}
+
+	// Check if challenge has expired before wasting compute resources
+	if parsedChallenge.IsExpired() {
+		return nil, ErrChallengeExpired
 	}
 
 	// Solve the challenge

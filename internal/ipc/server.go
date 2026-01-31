@@ -2,6 +2,7 @@ package ipc
 
 import (
 	"context"
+	"errors"
 	"net"
 	"os"
 	"time"
@@ -28,8 +29,10 @@ type Server struct {
 
 // NewServer creates a new IPC server.
 func NewServer(sockPath string, provider MonadProvider) (*Server, error) {
-	// Remove existing socket if present
-	os.Remove(sockPath)
+	// Remove existing socket if present (ignore "not exist" errors)
+	if err := os.Remove(sockPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
 
 	listener, err := net.Listen("unix", sockPath)
 	if err != nil {
@@ -53,10 +56,14 @@ func (s *Server) Start() error {
 	return s.grpc.Serve(s.listener)
 }
 
-// Stop gracefully stops the server.
-func (s *Server) Stop() {
+// Stop gracefully stops the server and removes the socket file.
+// Returns an error if the socket file could not be removed.
+func (s *Server) Stop() error {
 	s.grpc.GracefulStop()
-	os.Remove(s.sockPath)
+	if err := os.Remove(s.sockPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // GetMonad implements the gRPC method.

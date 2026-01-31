@@ -191,7 +191,10 @@ func TestLSHHash(t *testing.T) {
 	lsh := New(64, 10, 42)
 	vector := []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}
 
-	sig := lsh.Hash(vector)
+	sig, err := lsh.Hash(vector)
+	if err != nil {
+		t.Fatalf("Hash failed: %v", err)
+	}
 
 	if sig.Size != 64 {
 		t.Errorf("Signature size: got %d, want %d", sig.Size, 64)
@@ -202,8 +205,14 @@ func TestLSHHashDeterministic(t *testing.T) {
 	lsh := New(64, 10, 42)
 	vector := []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}
 
-	sig1 := lsh.Hash(vector)
-	sig2 := lsh.Hash(vector)
+	sig1, err := lsh.Hash(vector)
+	if err != nil {
+		t.Fatalf("Hash 1 failed: %v", err)
+	}
+	sig2, err := lsh.Hash(vector)
+	if err != nil {
+		t.Fatalf("Hash 2 failed: %v", err)
+	}
 
 	// Same vector should produce same signature
 	for i := 0; i < sig1.Size; i++ {
@@ -220,8 +229,14 @@ func TestLSHHashIdenticalVectors(t *testing.T) {
 	v1 := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	v2 := []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 
-	sig1 := lsh.Hash(v1)
-	sig2 := lsh.Hash(v2)
+	sig1, err := lsh.Hash(v1)
+	if err != nil {
+		t.Fatalf("Hash v1 failed: %v", err)
+	}
+	sig2, err := lsh.Hash(v2)
+	if err != nil {
+		t.Fatalf("Hash v2 failed: %v", err)
+	}
 
 	distance := HammingDistance(sig1, sig2)
 	if distance != 0 {
@@ -233,11 +248,11 @@ func TestLSHHashDimensionMismatch(t *testing.T) {
 	lsh := New(64, 10, 42)
 	wrongDimVector := []float32{0.1, 0.2, 0.3} // Only 3 dimensions, LSH expects 10
 
-	sig := lsh.Hash(wrongDimVector)
+	_, err := lsh.Hash(wrongDimVector)
 
-	// Should return empty signature on dimension mismatch
-	if sig.Size != 0 {
-		t.Errorf("Dimension mismatch should return empty signature, got size %d", sig.Size)
+	// Should return error on dimension mismatch
+	if err != ErrDimensionMismatch {
+		t.Errorf("Dimension mismatch should return ErrDimensionMismatch, got %v", err)
 	}
 }
 
@@ -331,8 +346,14 @@ func TestLSHSimilarVectorsLowDistance(t *testing.T) {
 		v2[i] = float32(i)/100.0 + 0.01 // Small perturbation
 	}
 
-	sig1 := lsh.Hash(v1)
-	sig2 := lsh.Hash(v2)
+	sig1, err := lsh.Hash(v1)
+	if err != nil {
+		t.Fatalf("Hash v1 failed: %v", err)
+	}
+	sig2, err := lsh.Hash(v2)
+	if err != nil {
+		t.Fatalf("Hash v2 failed: %v", err)
+	}
 
 	distance := HammingDistance(sig1, sig2)
 	maxDistance := 256 / 4 // Similar vectors should differ in less than 25% of bits
@@ -349,8 +370,14 @@ func TestLSHOrthogonalVectorsHalfBits(t *testing.T) {
 	v1 := []float32{1, 0, 0}
 	v2 := []float32{0, 1, 0}
 
-	sig1 := lsh.Hash(v1)
-	sig2 := lsh.Hash(v2)
+	sig1, err := lsh.Hash(v1)
+	if err != nil {
+		t.Fatalf("Hash v1 failed: %v", err)
+	}
+	sig2, err := lsh.Hash(v2)
+	if err != nil {
+		t.Fatalf("Hash v2 failed: %v", err)
+	}
 
 	distance := HammingDistance(sig1, sig2)
 
@@ -372,8 +399,14 @@ func TestLSHOppositeVectorsAllBits(t *testing.T) {
 		v2[i] = -v1[i]
 	}
 
-	sig1 := lsh.Hash(v1)
-	sig2 := lsh.Hash(v2)
+	sig1, err := lsh.Hash(v1)
+	if err != nil {
+		t.Fatalf("Hash v1 failed: %v", err)
+	}
+	sig2, err := lsh.Hash(v2)
+	if err != nil {
+		t.Fatalf("Hash v2 failed: %v", err)
+	}
 
 	distance := HammingDistance(sig1, sig2)
 
@@ -405,9 +438,18 @@ func TestLSHSimilarityPreservation(t *testing.T) {
 		dissimilar[i] = float32(50-i) / 50.0
 	}
 
-	sigBase := lsh.Hash(base)
-	sigSimilar := lsh.Hash(similar)
-	sigDissimilar := lsh.Hash(dissimilar)
+	sigBase, err := lsh.Hash(base)
+	if err != nil {
+		t.Fatalf("Hash base failed: %v", err)
+	}
+	sigSimilar, err := lsh.Hash(similar)
+	if err != nil {
+		t.Fatalf("Hash similar failed: %v", err)
+	}
+	sigDissimilar, err := lsh.Hash(dissimilar)
+	if err != nil {
+		t.Fatalf("Hash dissimilar failed: %v", err)
+	}
 
 	distSimilar := HammingDistance(sigBase, sigSimilar)
 	distDissimilar := HammingDistance(sigBase, sigDissimilar)
@@ -438,7 +480,11 @@ func TestLSHConcurrentHash(t *testing.T) {
 			for j := range vector {
 				vector[j] = float32(idx+j) / 100.0
 			}
-			sig := lsh.Hash(vector)
+			sig, err := lsh.Hash(vector)
+			if err != nil {
+				t.Errorf("Concurrent hash failed: %v", err)
+				return
+			}
 			if sig.Size != 64 {
 				t.Errorf("Concurrent hash returned wrong size: %d", sig.Size)
 			}
@@ -453,17 +499,21 @@ func TestLSHConcurrentDeterminism(t *testing.T) {
 	vector := []float32{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0}
 
 	// Get expected signature
-	expected := lsh.Hash(vector)
+	expected, err := lsh.Hash(vector)
+	if err != nil {
+		t.Fatalf("Hash failed: %v", err)
+	}
 
 	var wg sync.WaitGroup
 	numGoroutines := 50
 	results := make([]Signature, numGoroutines)
+	errors := make([]error, numGoroutines)
 
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			results[idx] = lsh.Hash(vector)
+			results[idx], errors[idx] = lsh.Hash(vector)
 		}(i)
 	}
 
@@ -471,6 +521,10 @@ func TestLSHConcurrentDeterminism(t *testing.T) {
 
 	// All results should match
 	for i, sig := range results {
+		if errors[i] != nil {
+			t.Errorf("Concurrent hash[%d] failed: %v", i, errors[i])
+			continue
+		}
 		for j := 0; j < sig.Size; j++ {
 			if sig.GetBit(j) != expected.GetBit(j) {
 				t.Errorf("Concurrent hash[%d] differs from expected at bit %d", i, j)
@@ -488,7 +542,10 @@ func TestLSHZeroVector(t *testing.T) {
 	lsh := New(64, 10, 42)
 	zeroVector := make([]float32, 10)
 
-	sig := lsh.Hash(zeroVector)
+	sig, err := lsh.Hash(zeroVector)
+	if err != nil {
+		t.Fatalf("Hash failed: %v", err)
+	}
 
 	// Zero vector should still produce a valid signature
 	// (all bits determined by hyperplane bias, which for normalized hyperplanes is effectively random)
@@ -500,20 +557,20 @@ func TestLSHZeroVector(t *testing.T) {
 func TestLSHNilVector(t *testing.T) {
 	lsh := New(64, 10, 42)
 
-	sig := lsh.Hash(nil)
+	_, err := lsh.Hash(nil)
 
-	if sig.Size != 0 {
-		t.Errorf("Nil vector should return empty signature, got size %d", sig.Size)
+	if err != ErrDimensionMismatch {
+		t.Errorf("Nil vector should return ErrDimensionMismatch, got %v", err)
 	}
 }
 
 func TestLSHEmptyVector(t *testing.T) {
 	lsh := New(64, 10, 42)
 
-	sig := lsh.Hash([]float32{})
+	_, err := lsh.Hash([]float32{})
 
-	if sig.Size != 0 {
-		t.Errorf("Empty vector should return empty signature, got size %d", sig.Size)
+	if err != ErrDimensionMismatch {
+		t.Errorf("Empty vector should return ErrDimensionMismatch, got %v", err)
 	}
 }
 
@@ -521,7 +578,10 @@ func TestLSHSingleHash(t *testing.T) {
 	lsh := New(1, 3, 42)
 
 	v := []float32{1, 0, 0}
-	sig := lsh.Hash(v)
+	sig, err := lsh.Hash(v)
+	if err != nil {
+		t.Fatalf("Hash failed: %v", err)
+	}
 
 	if sig.Size != 1 {
 		t.Errorf("Single hash LSH should produce 1-bit signature, got %d", sig.Size)
@@ -536,7 +596,10 @@ func TestLSHLargeSignature(t *testing.T) {
 		vector[i] = float32(i) / 100.0
 	}
 
-	sig := lsh.Hash(vector)
+	sig, err := lsh.Hash(vector)
+	if err != nil {
+		t.Fatalf("Hash failed: %v", err)
+	}
 
 	if sig.Size != 1024 {
 		t.Errorf("Large signature size: got %d, want 1024", sig.Size)
@@ -579,7 +642,7 @@ func BenchmarkLSHHash(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		lsh.Hash(vector)
+		_, _ = lsh.Hash(vector)
 	}
 }
 
@@ -592,8 +655,8 @@ func BenchmarkHammingDistance(b *testing.B) {
 		v2[i] = float32(100-i) / 100.0
 	}
 
-	sig1 := lsh.Hash(v1)
-	sig2 := lsh.Hash(v2)
+	sig1, _ := lsh.Hash(v1)
+	sig2, _ := lsh.Hash(v2)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

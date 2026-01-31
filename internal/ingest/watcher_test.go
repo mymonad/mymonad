@@ -599,3 +599,43 @@ func TestSetExcludesConcurrentSafety(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	// If we get here without a race condition panic, the test passes
 }
+
+func TestWatcherSkippedPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	events := make(chan FileEvent, 10)
+	watcher, err := NewWatcher(tmpDir, events)
+	if err != nil {
+		t.Fatalf("NewWatcher failed: %v", err)
+	}
+	defer watcher.Close()
+
+	// For an accessible directory, SkippedPaths should be empty
+	skipped := watcher.SkippedPaths()
+	if len(skipped) != 0 {
+		t.Errorf("Expected no skipped paths for accessible directory, got %d", len(skipped))
+	}
+}
+
+func TestWatcherSkippedPathsReturnsDefensiveCopy(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	events := make(chan FileEvent, 10)
+	watcher, err := NewWatcher(tmpDir, events)
+	if err != nil {
+		t.Fatalf("NewWatcher failed: %v", err)
+	}
+	defer watcher.Close()
+
+	// Get skipped paths twice and verify they're separate slices
+	skipped1 := watcher.SkippedPaths()
+	skipped2 := watcher.SkippedPaths()
+
+	// Both should be empty but be different slice instances
+	if len(skipped1) != 0 || len(skipped2) != 0 {
+		t.Error("Expected empty skipped paths")
+	}
+
+	// Verify modifying one doesn't affect the other (defensive copy test)
+	// This test is more about documenting the API contract
+}

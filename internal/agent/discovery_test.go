@@ -61,9 +61,9 @@ func TestNewDiscovery(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
-	if d == nil {
-		t.Fatal("NewDiscovery returned nil")
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
 	}
 
 	// Default visibility should be Active
@@ -88,9 +88,12 @@ func TestNewDiscoveryWithNilHost(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(nil, dht)
+	d, err := NewDiscovery(nil, dht)
+	if err != ErrNilHost {
+		t.Errorf("NewDiscovery with nil host should return ErrNilHost, got: %v", err)
+	}
 	if d != nil {
-		t.Error("NewDiscovery should return nil when host is nil")
+		t.Error("NewDiscovery with nil host should return nil Discovery")
 	}
 }
 
@@ -104,9 +107,12 @@ func TestNewDiscoveryWithNilDHT(t *testing.T) {
 	}
 	defer host.Close()
 
-	d := NewDiscovery(host, nil)
+	d, err := NewDiscovery(host, nil)
+	if err != ErrNilDHT {
+		t.Errorf("NewDiscovery with nil DHT should return ErrNilDHT, got: %v", err)
+	}
 	if d != nil {
-		t.Error("NewDiscovery should return nil when DHT is nil")
+		t.Error("NewDiscovery with nil DHT should return nil Discovery")
 	}
 }
 
@@ -130,7 +136,10 @@ func TestSetVisibility(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 
 	// Test setting to Passive
 	d.SetVisibility(VisibilityPassive)
@@ -167,7 +176,10 @@ func TestSetVisibilityConcurrent(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 
 	var wg sync.WaitGroup
 	modes := []VisibilityMode{VisibilityActive, VisibilityPassive, VisibilityHidden}
@@ -206,7 +218,10 @@ func TestUpdateSignature(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 
 	// Create a test signature
 	sig := createTestMonadSignature(t)
@@ -239,7 +254,10 @@ func TestUpdateSignatureNil(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 
 	// Update with nil signature should return error
 	err = d.UpdateSignature(nil)
@@ -264,7 +282,10 @@ func TestUpdateSignatureHiddenMode(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	d.SetVisibility(VisibilityHidden)
 
 	sig := createTestMonadSignature(t)
@@ -426,7 +447,10 @@ func TestPublishBucketsActiveMode(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Create discovery with signature
-	d := NewDiscovery(host1, dht1)
+	d, err := NewDiscovery(host1, dht1)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	sig := createTestMonadSignature(t)
 	err = d.UpdateSignature(sig)
 	if err != nil {
@@ -456,7 +480,10 @@ func TestPublishBucketsHiddenMode(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	d.SetVisibility(VisibilityHidden)
 
 	sig := createTestMonadSignature(t)
@@ -488,7 +515,10 @@ func TestPublishBucketsNoSignature(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 
 	// PublishBuckets without a signature should return error
 	err = d.PublishBuckets(ctx)
@@ -549,8 +579,14 @@ func TestFindSimilarActiveMode(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Create discoveries with similar signatures
-	d1 := NewDiscovery(host1, dht1)
-	d2 := NewDiscovery(host2, dht2)
+	d1, err := NewDiscovery(host1, dht1)
+	if err != nil {
+		t.Fatalf("NewDiscovery 1 failed: %v", err)
+	}
+	d2, err := NewDiscovery(host2, dht2)
+	if err != nil {
+		t.Fatalf("NewDiscovery 2 failed: %v", err)
+	}
 
 	// Use same signature for both (they should find each other)
 	sig := createTestMonadSignature(t)
@@ -607,7 +643,10 @@ func TestFindSimilarHiddenMode(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	d.SetVisibility(VisibilityHidden)
 
 	sig := createTestMonadSignature(t)
@@ -643,7 +682,10 @@ func TestFindSimilarPassiveMode(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	d.SetVisibility(VisibilityPassive)
 
 	sig := createTestMonadSignature(t)
@@ -679,7 +721,10 @@ func TestFindSimilarNoSignature(t *testing.T) {
 	}
 	defer dht.Close()
 
-	d := NewDiscovery(host, dht)
+	d, err := NewDiscovery(host, dht)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 
 	// FindSimilar without a signature should return error
 	_, err = d.FindSimilar(ctx, 10)
@@ -737,7 +782,10 @@ func TestDiscoveryConcurrentOperations(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond)
 
-	d := NewDiscovery(host1, dht1)
+	d, err := NewDiscovery(host1, dht1)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	sig := createTestMonadSignature(t)
 	_ = d.UpdateSignature(sig)
 
@@ -819,7 +867,10 @@ func TestFindSimilarExcludesSelf(t *testing.T) {
 
 	time.Sleep(500 * time.Millisecond)
 
-	d := NewDiscovery(host1, dht1)
+	d, err := NewDiscovery(host1, dht1)
+	if err != nil {
+		t.Fatalf("NewDiscovery failed: %v", err)
+	}
 	sig := createTestMonadSignature(t)
 	err = d.UpdateSignature(sig)
 	if err != nil {
@@ -932,8 +983,14 @@ func TestFindSimilarDeduplicatesPeers(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Both use same signature to maximize bucket overlap
-	d1 := NewDiscovery(host1, dht1)
-	d2 := NewDiscovery(host2, dht2)
+	d1, err := NewDiscovery(host1, dht1)
+	if err != nil {
+		t.Fatalf("NewDiscovery 1 failed: %v", err)
+	}
+	d2, err := NewDiscovery(host2, dht2)
+	if err != nil {
+		t.Fatalf("NewDiscovery 2 failed: %v", err)
+	}
 
 	sig := createTestMonadSignature(t)
 	_ = d1.UpdateSignature(sig)

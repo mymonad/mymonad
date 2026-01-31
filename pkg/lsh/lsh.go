@@ -4,10 +4,14 @@
 package lsh
 
 import (
+	"errors"
 	"math"
 	"math/bits"
 	"math/rand"
 )
+
+// ErrDimensionMismatch is returned when the vector dimensions don't match the LSH configuration.
+var ErrDimensionMismatch = errors.New("lsh: vector dimensions do not match")
 
 // Signature represents an LSH signature as a packed bitstring.
 type Signature struct {
@@ -101,10 +105,10 @@ func generateRandomUnitVector(dimensions int, rng *rand.Rand) []float32 {
 }
 
 // Hash computes the LSH signature for the given vector.
-// Returns an empty signature if the vector dimensions don't match.
-func (l *LSH) Hash(vector []float32) Signature {
+// Returns ErrDimensionMismatch if the vector dimensions don't match.
+func (l *LSH) Hash(vector []float32) (Signature, error) {
 	if vector == nil || len(vector) != l.dimensions {
-		return Signature{}
+		return Signature{}, ErrDimensionMismatch
 	}
 
 	sig := NewSignature(l.numHashes)
@@ -117,7 +121,7 @@ func (l *LSH) Hash(vector []float32) Signature {
 		}
 	}
 
-	return sig
+	return sig, nil
 }
 
 // dot computes the dot product of two vectors.

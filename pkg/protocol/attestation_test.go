@@ -4,6 +4,7 @@ package protocol
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +28,15 @@ func generateTestPeerID(t *testing.T) peer.ID {
 	t.Helper()
 	// Create a mock peer ID for testing
 	return peer.ID("12D3KooWTestPeerID123456789")
+}
+
+// Helper function to generate a fresh test challenge that isn't expired.
+func generateFreshTestChallenge(t *testing.T) string {
+	t.Helper()
+	// Use current timestamp (hashcash parses timestamp as unix seconds)
+	currentTimestamp := time.Now().Unix()
+	// Format: version:bits:timestamp:resource:rand
+	return "1:8:" + strconv.FormatInt(currentTimestamp, 10) + ":test-resource:MTIzNDU2"
 }
 
 // ============================================================================
@@ -207,7 +217,7 @@ func TestNewAttestationResponse(t *testing.T) {
 	peerID := generateTestPeerID(t)
 	version := "1.0.0"
 	// Create a valid challenge with low difficulty for fast tests
-	challenge := "1:8:1706745600:test-resource:MTIzNDU2"
+	challenge := generateFreshTestChallenge(t)
 
 	t.Run("creates valid response with solved challenge", func(t *testing.T) {
 		resp, err := NewAttestationResponse(peerID, version, challenge)
@@ -271,7 +281,7 @@ func TestAttestationResponseSign(t *testing.T) {
 	peerID := generateTestPeerID(t)
 	_, priv := generateTestKeyPair(t)
 	version := "1.0.0"
-	challenge := "1:8:1706745600:test-resource:MTIzNDU2"
+	challenge := generateFreshTestChallenge(t)
 
 	t.Run("signs response successfully", func(t *testing.T) {
 		resp, _ := NewAttestationResponse(peerID, version, challenge)
@@ -292,7 +302,7 @@ func TestAttestationResponseVerify(t *testing.T) {
 	pub, priv := generateTestKeyPair(t)
 	pub2, _ := generateTestKeyPair(t)
 	version := "1.0.0"
-	challenge := "1:8:1706745600:test-resource:MTIzNDU2"
+	challenge := generateFreshTestChallenge(t)
 
 	t.Run("verifies valid signature", func(t *testing.T) {
 		resp, _ := NewAttestationResponse(peerID, version, challenge)
@@ -341,7 +351,7 @@ func TestAttestationResponseVerifyPoW(t *testing.T) {
 	peerID := generateTestPeerID(t)
 	version := "1.0.0"
 	difficulty := 8 // Low difficulty for fast tests
-	challenge := "1:8:1706745600:test-resource:MTIzNDU2"
+	challenge := generateFreshTestChallenge(t)
 
 	t.Run("valid PoW verifies successfully", func(t *testing.T) {
 		resp, err := NewAttestationResponse(peerID, version, challenge)
@@ -486,7 +496,7 @@ func TestAttestationConcurrentRequests(t *testing.T) {
 func TestAttestationConcurrentResponses(t *testing.T) {
 	peerID := generateTestPeerID(t)
 	version := "1.0.0"
-	challenge := "1:8:1706745600:test-resource:MTIzNDU2"
+	challenge := generateFreshTestChallenge(t)
 
 	var wg sync.WaitGroup
 	numGoroutines := 10
@@ -548,7 +558,7 @@ func TestAttestationRequestBytesToSign(t *testing.T) {
 func TestAttestationResponseBytesToSign(t *testing.T) {
 	peerID := generateTestPeerID(t)
 	version := "1.0.0"
-	challenge := "1:8:1706745600:test-resource:MTIzNDU2"
+	challenge := generateFreshTestChallenge(t)
 
 	resp, _ := NewAttestationResponse(peerID, version, challenge)
 

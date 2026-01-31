@@ -73,7 +73,7 @@ func TestServerStartStop(t *testing.T) {
 	waitForSocket(t, sockPath, 20)
 
 	// Stop
-	server.Stop()
+	_ = server.Stop()
 }
 
 func TestServerGetMonad(t *testing.T) {
@@ -88,7 +88,7 @@ func TestServerGetMonad(t *testing.T) {
 
 	server, _ := NewServer(sockPath, store)
 	go server.Start()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Connect as client with retries
 	conn := waitForServer(t, sockPath, 20)
@@ -119,7 +119,7 @@ func TestServerStatus(t *testing.T) {
 
 	server, _ := NewServer(sockPath, store)
 	go server.Start()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Connect as client with retries
 	conn := waitForServer(t, sockPath, 20)
@@ -168,7 +168,7 @@ func TestClient(t *testing.T) {
 
 	server, _ := NewServer(sockPath, store)
 	go server.Start()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Wait for socket to be ready
 	waitForSocket(t, sockPath, 20)
@@ -204,7 +204,7 @@ func TestClientStatus(t *testing.T) {
 
 	server, _ := NewServer(sockPath, store)
 	go server.Start()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Wait for socket to be ready
 	waitForSocket(t, sockPath, 20)
@@ -268,7 +268,7 @@ func TestClientClose(t *testing.T) {
 
 	server, _ := NewServer(sockPath, store)
 	go server.Start()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Wait for socket to be ready
 	waitForSocket(t, sockPath, 20)

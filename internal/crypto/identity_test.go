@@ -187,3 +187,33 @@ func TestSharedSecretInvalidPeerKey(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedSecretRejectsLowOrderPoints(t *testing.T) {
+	identity, err := GenerateIdentity()
+	if err != nil {
+		t.Fatalf("GenerateIdentity failed: %v", err)
+	}
+
+	// X25519 low-order points that should be rejected
+	// These points have small subgroup order and produce weak shared secrets
+	lowOrderPoints := [][]byte{
+		// All zeros - identity element
+		make([]byte, 32),
+		// Point (1, 0)
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+		// Small subgroup element of order 8
+		{224, 235, 122, 124, 59, 65, 184, 174, 22, 86, 227, 250, 241, 159, 196, 106, 218, 9, 141, 235, 156, 50, 177, 253, 134, 98, 5, 22, 95, 73, 184, 0},
+		// Another known low-order point
+		{95, 156, 149, 188, 163, 80, 140, 36, 177, 208, 177, 85, 156, 131, 239, 91, 4, 68, 92, 196, 88, 28, 142, 134, 216, 34, 78, 221, 208, 159, 17, 87},
+	}
+
+	for i, lowOrderPoint := range lowOrderPoints {
+		_, err := identity.SharedSecret(lowOrderPoint)
+		if err == nil {
+			t.Errorf("SharedSecret should reject low-order point %d", i)
+		}
+		if err != nil && err != ErrLowOrderPoint {
+			t.Errorf("SharedSecret should return ErrLowOrderPoint for point %d, got: %v", i, err)
+		}
+	}
+}
