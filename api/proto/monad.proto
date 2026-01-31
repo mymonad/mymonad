@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package monad;
+
+option go_package = "github.com/mymonad/mymonad/api/proto";
+
+// MonadStore is the IPC service exposed by the Ingestion Daemon.
+service MonadStore {
+  // GetMonad returns the current encrypted Monad.
+  rpc GetMonad(GetMonadRequest) returns (GetMonadResponse);
+
+  // WatchMonad streams updates when the Monad changes.
+  rpc WatchMonad(WatchMonadRequest) returns (stream MonadUpdate);
+
+  // Status returns the ingestion daemon status.
+  rpc Status(StatusRequest) returns (StatusResponse);
+}
+
+message GetMonadRequest {}
+
+message GetMonadResponse {
+  bytes encrypted_monad = 1;
+  int64 version = 2;
+  int64 last_updated = 3; // Unix timestamp
+}
+
+message WatchMonadRequest {}
+
+message MonadUpdate {
+  bytes encrypted_monad = 1;
+  int64 version = 2;
+  int64 timestamp = 3;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  bool ready = 1;
+  int64 documents_indexed = 2;
+  int64 last_scan_timestamp = 3;
+  string state = 4; // "idle", "scanning", "embedding"
+}
