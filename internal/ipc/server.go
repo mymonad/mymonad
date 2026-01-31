@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	pb "github.com/mymonad/mymonad/api/proto"
@@ -25,7 +24,6 @@ type Server struct {
 	provider MonadProvider
 	grpc     *grpc.Server
 	listener net.Listener
-	mu       sync.RWMutex
 }
 
 // NewServer creates a new IPC server.
