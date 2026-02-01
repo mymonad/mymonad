@@ -237,6 +237,45 @@ func (m *Monad) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// UpdateWithDecay incorporates a new document embedding with temporal decay.
+// The lambda parameter controls decay rate (0.01 ≈ 70-day half-life).
+// Recent documents contribute more than older ones.
+//
+// Formula: existing_vector *= exp(-lambda * days_elapsed)
+// Then applies running average with new embedding.
+func (m *Monad) UpdateWithDecay(docEmbedding []float32, lambda float64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(docEmbedding) != len(m.Vector) {
+		return ErrDimensionMismatch
+	}
+
+	now := time.Now()
+
+	// Apply decay to existing vector if we have prior data
+	if m.DocCount > 0 {
+		elapsed := now.Sub(m.UpdatedAt).Hours() / 24.0 // days
+		decayFactor := float32(math.Exp(-lambda * elapsed))
+
+		for i := range m.Vector {
+			m.Vector[i] *= decayFactor
+		}
+	}
+
+	// Running average update
+	m.DocCount++
+	weight := 1.0 / float32(m.DocCount)
+
+	for i := range m.Vector {
+		m.Vector[i] = m.Vector[i]*(1-weight) + docEmbedding[i]*weight
+	}
+
+	m.Version++
+	m.UpdatedAt = now
+	return nil
+}
+
 // LoadFromFile loads a Monad from a file.
 // Returns an error if the file cannot be read or the data is invalid.
 func LoadFromFile(path string) (*Monad, error) {

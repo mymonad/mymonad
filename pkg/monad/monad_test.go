@@ -4,6 +4,7 @@ import (
 	"math"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestNewMonad(t *testing.T) {
@@ -511,5 +512,58 @@ func TestMonad_MarshalUnmarshalLargeVector(t *testing.T) {
 		if m2.Vector[i] != m.Vector[i] {
 			t.Errorf("Vector[%d] mismatch: got %f, want %f", i, m2.Vector[i], m.Vector[i])
 		}
+	}
+}
+
+func TestUpdateWithDecay(t *testing.T) {
+	m := New(3)
+
+	// First update - no decay (fresh monad)
+	err := m.UpdateWithDecay([]float32{1.0, 0.0, 0.0}, 0.01)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if m.GetDocCount() != 1 {
+		t.Errorf("expected doc count 1, got %d", m.GetDocCount())
+	}
+
+	// Vector should be approximately [1, 0, 0]
+	if m.Vector[0] < 0.9 {
+		t.Errorf("expected Vector[0] near 1.0, got %f", m.Vector[0])
+	}
+}
+
+func TestUpdateWithDecay_OldDataDecays(t *testing.T) {
+	m := New(3)
+
+	// Simulate old data by setting UpdatedAt in the past
+	m.Vector = []float32{1.0, 0.0, 0.0}
+	m.DocCount = 1
+	m.UpdatedAt = time.Now().Add(-70 * 24 * time.Hour) // 70 days ago
+
+	// Update with lambda=0.01 (half-life ~70 days)
+	// Old vector should decay by ~50%
+	err := m.UpdateWithDecay([]float32{0.0, 1.0, 0.0}, 0.01)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Old component should be decayed
+	if m.Vector[0] > 0.6 {
+		t.Errorf("expected Vector[0] to decay below 0.6, got %f", m.Vector[0])
+	}
+
+	// New component should have weight
+	if m.Vector[1] < 0.3 {
+		t.Errorf("expected Vector[1] above 0.3, got %f", m.Vector[1])
+	}
+}
+
+func TestUpdateWithDecay_DimensionMismatch(t *testing.T) {
+	m := New(3)
+	err := m.UpdateWithDecay([]float32{1.0, 2.0}, 0.01) // Wrong dimension
+	if err != ErrDimensionMismatch {
+		t.Errorf("expected ErrDimensionMismatch, got %v", err)
 	}
 }
