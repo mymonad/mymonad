@@ -4,8 +4,12 @@
 package monad
 
 import (
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 	"unsafe"
@@ -144,4 +148,157 @@ func (m *Monad) Dimensions() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.Vector)
+}
+
+// GetVersion returns the current version in a thread-safe manner.
+func (m *Monad) GetVersion() int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.Version
+}
+
+// GetDocCount returns the current document count in a thread-safe manner.
+func (m *Monad) GetDocCount() int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.DocCount
+}
+
+// Binary format header size: version(8) + doccount(8) + updatedat(8) + dims(4) = 28 bytes
+const binaryHeaderSize = 28
+
+// ErrInvalidBinaryData is returned when binary data is malformed.
+var ErrInvalidBinaryData = errors.New("invalid binary data")
+
+// MarshalBinary encodes the Monad to binary format.
+// Format: version(8) + doccount(8) + updatedat(8) + dims(4) + vector(dims*4)
+// All values are encoded in little-endian byte order.
+func (m *Monad) MarshalBinary() ([]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	dims := len(m.Vector)
+	size := binaryHeaderSize + dims*4
+	data := make([]byte, size)
+
+	// Write header
+	binary.LittleEndian.PutUint64(data[0:8], uint64(m.Version))
+	binary.LittleEndian.PutUint64(data[8:16], uint64(m.DocCount))
+	binary.LittleEndian.PutUint64(data[16:24], uint64(m.UpdatedAt.UnixNano()))
+	binary.LittleEndian.PutUint32(data[24:28], uint32(dims))
+
+	// Write vector
+	offset := binaryHeaderSize
+	for _, v := range m.Vector {
+		binary.LittleEndian.PutUint32(data[offset:offset+4], math.Float32bits(v))
+		offset += 4
+	}
+
+	return data, nil
+}
+
+// UnmarshalBinary decodes the Monad from binary format.
+// The data must have been encoded with MarshalBinary.
+func (m *Monad) UnmarshalBinary(data []byte) error {
+	if len(data) < binaryHeaderSize {
+		return fmt.Errorf("%w: data too short for header (got %d, need %d)", ErrInvalidBinaryData, len(data), binaryHeaderSize)
+	}
+
+	// Read header
+	version := int64(binary.LittleEndian.Uint64(data[0:8]))
+	docCount := int64(binary.LittleEndian.Uint64(data[8:16]))
+	updatedAtNano := int64(binary.LittleEndian.Uint64(data[16:24]))
+	dims := binary.LittleEndian.Uint32(data[24:28])
+
+	// Validate vector data length
+	expectedLen := binaryHeaderSize + int(dims)*4
+	if len(data) < expectedLen {
+		return fmt.Errorf("%w: data too short for vector (got %d, need %d)", ErrInvalidBinaryData, len(data), expectedLen)
+	}
+
+	// Read vector
+	vector := make([]float32, dims)
+	offset := binaryHeaderSize
+	for i := range vector {
+		bits := binary.LittleEndian.Uint32(data[offset : offset+4])
+		vector[i] = math.Float32frombits(bits)
+		offset += 4
+	}
+
+	// Assign to monad
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.Version = version
+	m.DocCount = docCount
+	m.UpdatedAt = time.Unix(0, updatedAtNano)
+	m.Vector = vector
+
+	return nil
+}
+
+// LoadFromFile loads a Monad from a file.
+// Returns an error if the file cannot be read or the data is invalid.
+func LoadFromFile(path string) (*Monad, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read monad file: %w", err)
+	}
+
+	m := &Monad{}
+	if err := m.UnmarshalBinary(data); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal monad: %w", err)
+	}
+
+	return m, nil
+}
+
+// SaveToFile saves a Monad to a file atomically.
+// Uses temp file + rename pattern for crash safety.
+// This ensures the file is never left in a partially-written state.
+func SaveToFile(m *Monad, path string) error {
+	data, err := m.MarshalBinary()
+	if err != nil {
+		return fmt.Errorf("failed to marshal monad: %w", err)
+	}
+
+	// Create temp file in same directory to ensure atomic rename works
+	dir := filepath.Dir(path)
+	tmpFile, err := os.CreateTemp(dir, ".monad-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+
+	// Clean up temp file on any error
+	defer func() {
+		if tmpFile != nil {
+			tmpFile.Close()
+			os.Remove(tmpPath)
+		}
+	}()
+
+	// Write data to temp file
+	if _, err := tmpFile.Write(data); err != nil {
+		return fmt.Errorf("failed to write monad data: %w", err)
+	}
+
+	// Sync to disk to ensure durability
+	if err := tmpFile.Sync(); err != nil {
+		return fmt.Errorf("failed to sync monad file: %w", err)
+	}
+
+	// Close before rename
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+	tmpFile = nil // Prevent deferred cleanup
+
+	// Atomic rename
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	return nil
 }

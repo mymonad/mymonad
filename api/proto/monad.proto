@@ -40,3 +40,58 @@ message StatusResponse {
   int64 last_scan_timestamp = 3;
   string state = 4; // "idle", "scanning", "embedding"
 }
+
+// AgentService is the IPC service exposed by the Agent Daemon.
+service AgentService {
+  // Status returns the agent's current status.
+  rpc Status(AgentStatusRequest) returns (AgentStatusResponse);
+
+  // Peers returns connected peers.
+  rpc Peers(PeersRequest) returns (PeersResponse);
+
+  // Bootstrap manually connects to a peer.
+  rpc Bootstrap(BootstrapRequest) returns (BootstrapResponse);
+
+  // Identity returns the local identity info.
+  rpc Identity(IdentityRequest) returns (IdentityResponse);
+}
+
+message AgentStatusRequest {}
+
+message AgentStatusResponse {
+  bool ready = 1;
+  string peer_id = 2;
+  int32 connected_peers = 3;
+  int32 active_handshakes = 4;
+  string state = 5;
+}
+
+message PeersRequest {}
+
+message PeersResponse {
+  repeated PeerInfo peers = 1;
+}
+
+message PeerInfo {
+  string peer_id = 1;
+  repeated string addrs = 2;
+  string connection_state = 3;
+}
+
+message BootstrapRequest {
+  string multiaddr = 1;
+}
+
+message BootstrapResponse {
+  bool success = 1;
+  string error = 2;
+  string peer_id = 3;
+}
+
+message IdentityRequest {}
+
+message IdentityResponse {
+  string peer_id = 1;
+  string did = 2;
+  repeated string listen_addrs = 3;
+}
