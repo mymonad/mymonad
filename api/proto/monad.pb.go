@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v4.25.1
-// source: monad.proto
+// source: api/proto/monad.proto
 
 package proto
 
@@ -29,7 +29,7 @@ type GetMonadRequest struct {
 
 func (x *GetMonadRequest) Reset() {
 	*x = GetMonadRequest{}
-	mi := &file_monad_proto_msgTypes[0]
+	mi := &file_api_proto_monad_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +41,7 @@ func (x *GetMonadRequest) String() string {
 func (*GetMonadRequest) ProtoMessage() {}
 
 func (x *GetMonadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[0]
+	mi := &file_api_proto_monad_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +54,7 @@ func (x *GetMonadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMonadRequest.ProtoReflect.Descriptor instead.
 func (*GetMonadRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{0}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{0}
 }
 
 type GetMonadResponse struct {
@@ -68,7 +68,7 @@ type GetMonadResponse struct {
 
 func (x *GetMonadResponse) Reset() {
 	*x = GetMonadResponse{}
-	mi := &file_monad_proto_msgTypes[1]
+	mi := &file_api_proto_monad_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -80,7 +80,7 @@ func (x *GetMonadResponse) String() string {
 func (*GetMonadResponse) ProtoMessage() {}
 
 func (x *GetMonadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[1]
+	mi := &file_api_proto_monad_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -93,7 +93,7 @@ func (x *GetMonadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMonadResponse.ProtoReflect.Descriptor instead.
 func (*GetMonadResponse) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{1}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetMonadResponse) GetEncryptedMonad() []byte {
@@ -125,7 +125,7 @@ type WatchMonadRequest struct {
 
 func (x *WatchMonadRequest) Reset() {
 	*x = WatchMonadRequest{}
-	mi := &file_monad_proto_msgTypes[2]
+	mi := &file_api_proto_monad_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -137,7 +137,7 @@ func (x *WatchMonadRequest) String() string {
 func (*WatchMonadRequest) ProtoMessage() {}
 
 func (x *WatchMonadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[2]
+	mi := &file_api_proto_monad_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -150,7 +150,7 @@ func (x *WatchMonadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchMonadRequest.ProtoReflect.Descriptor instead.
 func (*WatchMonadRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{2}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{2}
 }
 
 type MonadUpdate struct {
@@ -164,7 +164,7 @@ type MonadUpdate struct {
 
 func (x *MonadUpdate) Reset() {
 	*x = MonadUpdate{}
-	mi := &file_monad_proto_msgTypes[3]
+	mi := &file_api_proto_monad_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -176,7 +176,7 @@ func (x *MonadUpdate) String() string {
 func (*MonadUpdate) ProtoMessage() {}
 
 func (x *MonadUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[3]
+	mi := &file_api_proto_monad_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -189,7 +189,7 @@ func (x *MonadUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MonadUpdate.ProtoReflect.Descriptor instead.
 func (*MonadUpdate) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{3}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MonadUpdate) GetEncryptedMonad() []byte {
@@ -221,7 +221,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_monad_proto_msgTypes[4]
+	mi := &file_api_proto_monad_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -233,7 +233,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[4]
+	mi := &file_api_proto_monad_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -246,7 +246,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{4}
 }
 
 type StatusResponse struct {
@@ -261,7 +261,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_monad_proto_msgTypes[5]
+	mi := &file_api_proto_monad_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -273,7 +273,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[5]
+	mi := &file_api_proto_monad_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,7 +286,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *StatusResponse) GetReady() bool {
@@ -325,7 +325,7 @@ type AgentStatusRequest struct {
 
 func (x *AgentStatusRequest) Reset() {
 	*x = AgentStatusRequest{}
-	mi := &file_monad_proto_msgTypes[6]
+	mi := &file_api_proto_monad_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +337,7 @@ func (x *AgentStatusRequest) String() string {
 func (*AgentStatusRequest) ProtoMessage() {}
 
 func (x *AgentStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[6]
+	mi := &file_api_proto_monad_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,7 +350,7 @@ func (x *AgentStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentStatusRequest.ProtoReflect.Descriptor instead.
 func (*AgentStatusRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{6}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{6}
 }
 
 type AgentStatusResponse struct {
@@ -366,7 +366,7 @@ type AgentStatusResponse struct {
 
 func (x *AgentStatusResponse) Reset() {
 	*x = AgentStatusResponse{}
-	mi := &file_monad_proto_msgTypes[7]
+	mi := &file_api_proto_monad_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -378,7 +378,7 @@ func (x *AgentStatusResponse) String() string {
 func (*AgentStatusResponse) ProtoMessage() {}
 
 func (x *AgentStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[7]
+	mi := &file_api_proto_monad_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -391,7 +391,7 @@ func (x *AgentStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentStatusResponse.ProtoReflect.Descriptor instead.
 func (*AgentStatusResponse) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{7}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AgentStatusResponse) GetReady() bool {
@@ -437,7 +437,7 @@ type PeersRequest struct {
 
 func (x *PeersRequest) Reset() {
 	*x = PeersRequest{}
-	mi := &file_monad_proto_msgTypes[8]
+	mi := &file_api_proto_monad_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -449,7 +449,7 @@ func (x *PeersRequest) String() string {
 func (*PeersRequest) ProtoMessage() {}
 
 func (x *PeersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[8]
+	mi := &file_api_proto_monad_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -462,7 +462,7 @@ func (x *PeersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeersRequest.ProtoReflect.Descriptor instead.
 func (*PeersRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{8}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{8}
 }
 
 type PeersResponse struct {
@@ -474,7 +474,7 @@ type PeersResponse struct {
 
 func (x *PeersResponse) Reset() {
 	*x = PeersResponse{}
-	mi := &file_monad_proto_msgTypes[9]
+	mi := &file_api_proto_monad_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -486,7 +486,7 @@ func (x *PeersResponse) String() string {
 func (*PeersResponse) ProtoMessage() {}
 
 func (x *PeersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[9]
+	mi := &file_api_proto_monad_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -499,7 +499,7 @@ func (x *PeersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeersResponse.ProtoReflect.Descriptor instead.
 func (*PeersResponse) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{9}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *PeersResponse) GetPeers() []*PeerInfo {
@@ -520,7 +520,7 @@ type PeerInfo struct {
 
 func (x *PeerInfo) Reset() {
 	*x = PeerInfo{}
-	mi := &file_monad_proto_msgTypes[10]
+	mi := &file_api_proto_monad_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +532,7 @@ func (x *PeerInfo) String() string {
 func (*PeerInfo) ProtoMessage() {}
 
 func (x *PeerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[10]
+	mi := &file_api_proto_monad_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +545,7 @@ func (x *PeerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerInfo.ProtoReflect.Descriptor instead.
 func (*PeerInfo) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{10}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PeerInfo) GetPeerId() string {
@@ -578,7 +578,7 @@ type BootstrapRequest struct {
 
 func (x *BootstrapRequest) Reset() {
 	*x = BootstrapRequest{}
-	mi := &file_monad_proto_msgTypes[11]
+	mi := &file_api_proto_monad_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +590,7 @@ func (x *BootstrapRequest) String() string {
 func (*BootstrapRequest) ProtoMessage() {}
 
 func (x *BootstrapRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[11]
+	mi := &file_api_proto_monad_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +603,7 @@ func (x *BootstrapRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BootstrapRequest.ProtoReflect.Descriptor instead.
 func (*BootstrapRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{11}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *BootstrapRequest) GetMultiaddr() string {
@@ -624,7 +624,7 @@ type BootstrapResponse struct {
 
 func (x *BootstrapResponse) Reset() {
 	*x = BootstrapResponse{}
-	mi := &file_monad_proto_msgTypes[12]
+	mi := &file_api_proto_monad_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +636,7 @@ func (x *BootstrapResponse) String() string {
 func (*BootstrapResponse) ProtoMessage() {}
 
 func (x *BootstrapResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[12]
+	mi := &file_api_proto_monad_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +649,7 @@ func (x *BootstrapResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BootstrapResponse.ProtoReflect.Descriptor instead.
 func (*BootstrapResponse) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{12}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *BootstrapResponse) GetSuccess() bool {
@@ -681,7 +681,7 @@ type IdentityRequest struct {
 
 func (x *IdentityRequest) Reset() {
 	*x = IdentityRequest{}
-	mi := &file_monad_proto_msgTypes[13]
+	mi := &file_api_proto_monad_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -693,7 +693,7 @@ func (x *IdentityRequest) String() string {
 func (*IdentityRequest) ProtoMessage() {}
 
 func (x *IdentityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[13]
+	mi := &file_api_proto_monad_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -706,7 +706,7 @@ func (x *IdentityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdentityRequest.ProtoReflect.Descriptor instead.
 func (*IdentityRequest) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{13}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{13}
 }
 
 type IdentityResponse struct {
@@ -720,7 +720,7 @@ type IdentityResponse struct {
 
 func (x *IdentityResponse) Reset() {
 	*x = IdentityResponse{}
-	mi := &file_monad_proto_msgTypes[14]
+	mi := &file_api_proto_monad_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -732,7 +732,7 @@ func (x *IdentityResponse) String() string {
 func (*IdentityResponse) ProtoMessage() {}
 
 func (x *IdentityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_monad_proto_msgTypes[14]
+	mi := &file_api_proto_monad_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -745,7 +745,7 @@ func (x *IdentityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdentityResponse.ProtoReflect.Descriptor instead.
 func (*IdentityResponse) Descriptor() ([]byte, []int) {
-	return file_monad_proto_rawDescGZIP(), []int{14}
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *IdentityResponse) GetPeerId() string {
@@ -769,11 +769,720 @@ func (x *IdentityResponse) GetListenAddrs() []string {
 	return nil
 }
 
-var File_monad_proto protoreflect.FileDescriptor
+type StartHandshakeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
 
-const file_monad_proto_rawDesc = "" +
+func (x *StartHandshakeRequest) Reset() {
+	*x = StartHandshakeRequest{}
+	mi := &file_api_proto_monad_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartHandshakeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartHandshakeRequest) ProtoMessage() {}
+
+func (x *StartHandshakeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartHandshakeRequest.ProtoReflect.Descriptor instead.
+func (*StartHandshakeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *StartHandshakeRequest) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+type StartHandshakeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartHandshakeResponse) Reset() {
+	*x = StartHandshakeResponse{}
+	mi := &file_api_proto_monad_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartHandshakeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartHandshakeResponse) ProtoMessage() {}
+
+func (x *StartHandshakeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartHandshakeResponse.ProtoReflect.Descriptor instead.
+func (*StartHandshakeResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *StartHandshakeResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *StartHandshakeResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type ListHandshakesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHandshakesRequest) Reset() {
+	*x = ListHandshakesRequest{}
+	mi := &file_api_proto_monad_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHandshakesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHandshakesRequest) ProtoMessage() {}
+
+func (x *ListHandshakesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHandshakesRequest.ProtoReflect.Descriptor instead.
+func (*ListHandshakesRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{17}
+}
+
+type ListHandshakesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Handshakes    []*HandshakeInfo       `protobuf:"bytes,1,rep,name=handshakes,proto3" json:"handshakes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListHandshakesResponse) Reset() {
+	*x = ListHandshakesResponse{}
+	mi := &file_api_proto_monad_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListHandshakesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListHandshakesResponse) ProtoMessage() {}
+
+func (x *ListHandshakesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListHandshakesResponse.ProtoReflect.Descriptor instead.
+func (*ListHandshakesResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListHandshakesResponse) GetHandshakes() []*HandshakeInfo {
+	if x != nil {
+		return x.Handshakes
+	}
+	return nil
+}
+
+type GetHandshakeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHandshakeRequest) Reset() {
+	*x = GetHandshakeRequest{}
+	mi := &file_api_proto_monad_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHandshakeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHandshakeRequest) ProtoMessage() {}
+
+func (x *GetHandshakeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHandshakeRequest.ProtoReflect.Descriptor instead.
+func (*GetHandshakeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *GetHandshakeRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+type GetHandshakeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Handshake     *HandshakeInfo         `protobuf:"bytes,1,opt,name=handshake,proto3" json:"handshake,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetHandshakeResponse) Reset() {
+	*x = GetHandshakeResponse{}
+	mi := &file_api_proto_monad_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHandshakeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHandshakeResponse) ProtoMessage() {}
+
+func (x *GetHandshakeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetHandshakeResponse.ProtoReflect.Descriptor instead.
+func (*GetHandshakeResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *GetHandshakeResponse) GetHandshake() *HandshakeInfo {
+	if x != nil {
+		return x.Handshake
+	}
+	return nil
+}
+
+func (x *GetHandshakeResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type HandshakeInfo struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	SessionId           string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	PeerId              string                 `protobuf:"bytes,2,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	State               string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	Role                string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
+	ElapsedSeconds      int64                  `protobuf:"varint,5,opt,name=elapsed_seconds,json=elapsedSeconds,proto3" json:"elapsed_seconds,omitempty"`
+	PendingApproval     bool                   `protobuf:"varint,6,opt,name=pending_approval,json=pendingApproval,proto3" json:"pending_approval,omitempty"`
+	PendingApprovalType string                 `protobuf:"bytes,7,opt,name=pending_approval_type,json=pendingApprovalType,proto3" json:"pending_approval_type,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *HandshakeInfo) Reset() {
+	*x = HandshakeInfo{}
+	mi := &file_api_proto_monad_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandshakeInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandshakeInfo) ProtoMessage() {}
+
+func (x *HandshakeInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandshakeInfo.ProtoReflect.Descriptor instead.
+func (*HandshakeInfo) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *HandshakeInfo) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *HandshakeInfo) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *HandshakeInfo) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *HandshakeInfo) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *HandshakeInfo) GetElapsedSeconds() int64 {
+	if x != nil {
+		return x.ElapsedSeconds
+	}
+	return 0
+}
+
+func (x *HandshakeInfo) GetPendingApproval() bool {
+	if x != nil {
+		return x.PendingApproval
+	}
+	return false
+}
+
+func (x *HandshakeInfo) GetPendingApprovalType() string {
+	if x != nil {
+		return x.PendingApprovalType
+	}
+	return ""
+}
+
+type ApproveHandshakeRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// For unmask approval, include identity to reveal
+	DisplayName   string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Email         string `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
+	SignalNumber  string `protobuf:"bytes,4,opt,name=signal_number,json=signalNumber,proto3" json:"signal_number,omitempty"`
+	MatrixId      string `protobuf:"bytes,5,opt,name=matrix_id,json=matrixId,proto3" json:"matrix_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApproveHandshakeRequest) Reset() {
+	*x = ApproveHandshakeRequest{}
+	mi := &file_api_proto_monad_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApproveHandshakeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApproveHandshakeRequest) ProtoMessage() {}
+
+func (x *ApproveHandshakeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApproveHandshakeRequest.ProtoReflect.Descriptor instead.
+func (*ApproveHandshakeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ApproveHandshakeRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ApproveHandshakeRequest) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ApproveHandshakeRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *ApproveHandshakeRequest) GetSignalNumber() string {
+	if x != nil {
+		return x.SignalNumber
+	}
+	return ""
+}
+
+func (x *ApproveHandshakeRequest) GetMatrixId() string {
+	if x != nil {
+		return x.MatrixId
+	}
+	return ""
+}
+
+type ApproveHandshakeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApproveHandshakeResponse) Reset() {
+	*x = ApproveHandshakeResponse{}
+	mi := &file_api_proto_monad_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApproveHandshakeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApproveHandshakeResponse) ProtoMessage() {}
+
+func (x *ApproveHandshakeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApproveHandshakeResponse.ProtoReflect.Descriptor instead.
+func (*ApproveHandshakeResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ApproveHandshakeResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ApproveHandshakeResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type RejectHandshakeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RejectHandshakeRequest) Reset() {
+	*x = RejectHandshakeRequest{}
+	mi := &file_api_proto_monad_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RejectHandshakeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RejectHandshakeRequest) ProtoMessage() {}
+
+func (x *RejectHandshakeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RejectHandshakeRequest.ProtoReflect.Descriptor instead.
+func (*RejectHandshakeRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *RejectHandshakeRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *RejectHandshakeRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type RejectHandshakeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RejectHandshakeResponse) Reset() {
+	*x = RejectHandshakeResponse{}
+	mi := &file_api_proto_monad_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RejectHandshakeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RejectHandshakeResponse) ProtoMessage() {}
+
+func (x *RejectHandshakeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RejectHandshakeResponse.ProtoReflect.Descriptor instead.
+func (*RejectHandshakeResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *RejectHandshakeResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RejectHandshakeResponse) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+type WatchHandshakesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchHandshakesRequest) Reset() {
+	*x = WatchHandshakesRequest{}
+	mi := &file_api_proto_monad_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchHandshakesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchHandshakesRequest) ProtoMessage() {}
+
+func (x *WatchHandshakesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchHandshakesRequest.ProtoReflect.Descriptor instead.
+func (*WatchHandshakesRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{26}
+}
+
+type HandshakeEvent struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SessionId      string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	EventType      string                 `protobuf:"bytes,2,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"` // "started", "stage_changed", "pending_approval", "completed", "failed"
+	State          string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"`
+	PeerId         string                 `protobuf:"bytes,4,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	ElapsedSeconds int64                  `protobuf:"varint,5,opt,name=elapsed_seconds,json=elapsedSeconds,proto3" json:"elapsed_seconds,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *HandshakeEvent) Reset() {
+	*x = HandshakeEvent{}
+	mi := &file_api_proto_monad_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandshakeEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandshakeEvent) ProtoMessage() {}
+
+func (x *HandshakeEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_monad_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandshakeEvent.ProtoReflect.Descriptor instead.
+func (*HandshakeEvent) Descriptor() ([]byte, []int) {
+	return file_api_proto_monad_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *HandshakeEvent) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *HandshakeEvent) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *HandshakeEvent) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *HandshakeEvent) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *HandshakeEvent) GetElapsedSeconds() int64 {
+	if x != nil {
+		return x.ElapsedSeconds
+	}
+	return 0
+}
+
+var File_api_proto_monad_proto protoreflect.FileDescriptor
+
+const file_api_proto_monad_proto_rawDesc = "" +
 	"\n" +
-	"\vmonad.proto\x12\x05monad\"\x11\n" +
+	"\x15api/proto/monad.proto\x12\x05monad\"\x11\n" +
 	"\x0fGetMonadRequest\"x\n" +
 	"\x10GetMonadResponse\x12'\n" +
 	"\x0fencrypted_monad\x18\x01 \x01(\fR\x0eencryptedMonad\x12\x18\n" +
@@ -814,92 +1523,177 @@ const file_monad_proto_rawDesc = "" +
 	"\x10IdentityResponse\x12\x17\n" +
 	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x10\n" +
 	"\x03did\x18\x02 \x01(\tR\x03did\x12!\n" +
-	"\flisten_addrs\x18\x03 \x03(\tR\vlistenAddrs2\xbe\x01\n" +
+	"\flisten_addrs\x18\x03 \x03(\tR\vlistenAddrs\"0\n" +
+	"\x15StartHandshakeRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\"M\n" +
+	"\x16StartHandshakeResponse\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x17\n" +
+	"\x15ListHandshakesRequest\"N\n" +
+	"\x16ListHandshakesResponse\x124\n" +
+	"\n" +
+	"handshakes\x18\x01 \x03(\v2\x14.monad.HandshakeInfoR\n" +
+	"handshakes\"4\n" +
+	"\x13GetHandshakeRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"`\n" +
+	"\x14GetHandshakeResponse\x122\n" +
+	"\thandshake\x18\x01 \x01(\v2\x14.monad.HandshakeInfoR\thandshake\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\xf9\x01\n" +
+	"\rHandshakeInfo\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x17\n" +
+	"\apeer_id\x18\x02 \x01(\tR\x06peerId\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x12\x12\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12'\n" +
+	"\x0felapsed_seconds\x18\x05 \x01(\x03R\x0eelapsedSeconds\x12)\n" +
+	"\x10pending_approval\x18\x06 \x01(\bR\x0fpendingApproval\x122\n" +
+	"\x15pending_approval_type\x18\a \x01(\tR\x13pendingApprovalType\"\xb3\x01\n" +
+	"\x17ApproveHandshakeRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x14\n" +
+	"\x05email\x18\x03 \x01(\tR\x05email\x12#\n" +
+	"\rsignal_number\x18\x04 \x01(\tR\fsignalNumber\x12\x1b\n" +
+	"\tmatrix_id\x18\x05 \x01(\tR\bmatrixId\"J\n" +
+	"\x18ApproveHandshakeResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"O\n" +
+	"\x16RejectHandshakeRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x16\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"I\n" +
+	"\x17RejectHandshakeResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\"\x18\n" +
+	"\x16WatchHandshakesRequest\"\xa6\x01\n" +
+	"\x0eHandshakeEvent\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x02 \x01(\tR\teventType\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x12\x17\n" +
+	"\apeer_id\x18\x04 \x01(\tR\x06peerId\x12'\n" +
+	"\x0felapsed_seconds\x18\x05 \x01(\x03R\x0eelapsedSeconds2\xbe\x01\n" +
 	"\n" +
 	"MonadStore\x12;\n" +
 	"\bGetMonad\x12\x16.monad.GetMonadRequest\x1a\x17.monad.GetMonadResponse\x12<\n" +
 	"\n" +
 	"WatchMonad\x12\x18.monad.WatchMonadRequest\x1a\x12.monad.MonadUpdate0\x01\x125\n" +
-	"\x06Status\x12\x14.monad.StatusRequest\x1a\x15.monad.StatusResponse2\x80\x02\n" +
+	"\x06Status\x12\x14.monad.StatusRequest\x1a\x15.monad.StatusResponse2\xd9\x05\n" +
 	"\fAgentService\x12?\n" +
 	"\x06Status\x12\x19.monad.AgentStatusRequest\x1a\x1a.monad.AgentStatusResponse\x122\n" +
 	"\x05Peers\x12\x13.monad.PeersRequest\x1a\x14.monad.PeersResponse\x12>\n" +
 	"\tBootstrap\x12\x17.monad.BootstrapRequest\x1a\x18.monad.BootstrapResponse\x12;\n" +
-	"\bIdentity\x12\x16.monad.IdentityRequest\x1a\x17.monad.IdentityResponseB&Z$github.com/mymonad/mymonad/api/protob\x06proto3"
+	"\bIdentity\x12\x16.monad.IdentityRequest\x1a\x17.monad.IdentityResponse\x12M\n" +
+	"\x0eStartHandshake\x12\x1c.monad.StartHandshakeRequest\x1a\x1d.monad.StartHandshakeResponse\x12M\n" +
+	"\x0eListHandshakes\x12\x1c.monad.ListHandshakesRequest\x1a\x1d.monad.ListHandshakesResponse\x12G\n" +
+	"\fGetHandshake\x12\x1a.monad.GetHandshakeRequest\x1a\x1b.monad.GetHandshakeResponse\x12S\n" +
+	"\x10ApproveHandshake\x12\x1e.monad.ApproveHandshakeRequest\x1a\x1f.monad.ApproveHandshakeResponse\x12P\n" +
+	"\x0fRejectHandshake\x12\x1d.monad.RejectHandshakeRequest\x1a\x1e.monad.RejectHandshakeResponse\x12I\n" +
+	"\x0fWatchHandshakes\x12\x1d.monad.WatchHandshakesRequest\x1a\x15.monad.HandshakeEvent0\x01B&Z$github.com/mymonad/mymonad/api/protob\x06proto3"
 
 var (
-	file_monad_proto_rawDescOnce sync.Once
-	file_monad_proto_rawDescData []byte
+	file_api_proto_monad_proto_rawDescOnce sync.Once
+	file_api_proto_monad_proto_rawDescData []byte
 )
 
-func file_monad_proto_rawDescGZIP() []byte {
-	file_monad_proto_rawDescOnce.Do(func() {
-		file_monad_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_monad_proto_rawDesc), len(file_monad_proto_rawDesc)))
+func file_api_proto_monad_proto_rawDescGZIP() []byte {
+	file_api_proto_monad_proto_rawDescOnce.Do(func() {
+		file_api_proto_monad_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_monad_proto_rawDesc), len(file_api_proto_monad_proto_rawDesc)))
 	})
-	return file_monad_proto_rawDescData
+	return file_api_proto_monad_proto_rawDescData
 }
 
-var file_monad_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
-var file_monad_proto_goTypes = []any{
-	(*GetMonadRequest)(nil),     // 0: monad.GetMonadRequest
-	(*GetMonadResponse)(nil),    // 1: monad.GetMonadResponse
-	(*WatchMonadRequest)(nil),   // 2: monad.WatchMonadRequest
-	(*MonadUpdate)(nil),         // 3: monad.MonadUpdate
-	(*StatusRequest)(nil),       // 4: monad.StatusRequest
-	(*StatusResponse)(nil),      // 5: monad.StatusResponse
-	(*AgentStatusRequest)(nil),  // 6: monad.AgentStatusRequest
-	(*AgentStatusResponse)(nil), // 7: monad.AgentStatusResponse
-	(*PeersRequest)(nil),        // 8: monad.PeersRequest
-	(*PeersResponse)(nil),       // 9: monad.PeersResponse
-	(*PeerInfo)(nil),            // 10: monad.PeerInfo
-	(*BootstrapRequest)(nil),    // 11: monad.BootstrapRequest
-	(*BootstrapResponse)(nil),   // 12: monad.BootstrapResponse
-	(*IdentityRequest)(nil),     // 13: monad.IdentityRequest
-	(*IdentityResponse)(nil),    // 14: monad.IdentityResponse
+var file_api_proto_monad_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_api_proto_monad_proto_goTypes = []any{
+	(*GetMonadRequest)(nil),          // 0: monad.GetMonadRequest
+	(*GetMonadResponse)(nil),         // 1: monad.GetMonadResponse
+	(*WatchMonadRequest)(nil),        // 2: monad.WatchMonadRequest
+	(*MonadUpdate)(nil),              // 3: monad.MonadUpdate
+	(*StatusRequest)(nil),            // 4: monad.StatusRequest
+	(*StatusResponse)(nil),           // 5: monad.StatusResponse
+	(*AgentStatusRequest)(nil),       // 6: monad.AgentStatusRequest
+	(*AgentStatusResponse)(nil),      // 7: monad.AgentStatusResponse
+	(*PeersRequest)(nil),             // 8: monad.PeersRequest
+	(*PeersResponse)(nil),            // 9: monad.PeersResponse
+	(*PeerInfo)(nil),                 // 10: monad.PeerInfo
+	(*BootstrapRequest)(nil),         // 11: monad.BootstrapRequest
+	(*BootstrapResponse)(nil),        // 12: monad.BootstrapResponse
+	(*IdentityRequest)(nil),          // 13: monad.IdentityRequest
+	(*IdentityResponse)(nil),         // 14: monad.IdentityResponse
+	(*StartHandshakeRequest)(nil),    // 15: monad.StartHandshakeRequest
+	(*StartHandshakeResponse)(nil),   // 16: monad.StartHandshakeResponse
+	(*ListHandshakesRequest)(nil),    // 17: monad.ListHandshakesRequest
+	(*ListHandshakesResponse)(nil),   // 18: monad.ListHandshakesResponse
+	(*GetHandshakeRequest)(nil),      // 19: monad.GetHandshakeRequest
+	(*GetHandshakeResponse)(nil),     // 20: monad.GetHandshakeResponse
+	(*HandshakeInfo)(nil),            // 21: monad.HandshakeInfo
+	(*ApproveHandshakeRequest)(nil),  // 22: monad.ApproveHandshakeRequest
+	(*ApproveHandshakeResponse)(nil), // 23: monad.ApproveHandshakeResponse
+	(*RejectHandshakeRequest)(nil),   // 24: monad.RejectHandshakeRequest
+	(*RejectHandshakeResponse)(nil),  // 25: monad.RejectHandshakeResponse
+	(*WatchHandshakesRequest)(nil),   // 26: monad.WatchHandshakesRequest
+	(*HandshakeEvent)(nil),           // 27: monad.HandshakeEvent
 }
-var file_monad_proto_depIdxs = []int32{
+var file_api_proto_monad_proto_depIdxs = []int32{
 	10, // 0: monad.PeersResponse.peers:type_name -> monad.PeerInfo
-	0,  // 1: monad.MonadStore.GetMonad:input_type -> monad.GetMonadRequest
-	2,  // 2: monad.MonadStore.WatchMonad:input_type -> monad.WatchMonadRequest
-	4,  // 3: monad.MonadStore.Status:input_type -> monad.StatusRequest
-	6,  // 4: monad.AgentService.Status:input_type -> monad.AgentStatusRequest
-	8,  // 5: monad.AgentService.Peers:input_type -> monad.PeersRequest
-	11, // 6: monad.AgentService.Bootstrap:input_type -> monad.BootstrapRequest
-	13, // 7: monad.AgentService.Identity:input_type -> monad.IdentityRequest
-	1,  // 8: monad.MonadStore.GetMonad:output_type -> monad.GetMonadResponse
-	3,  // 9: monad.MonadStore.WatchMonad:output_type -> monad.MonadUpdate
-	5,  // 10: monad.MonadStore.Status:output_type -> monad.StatusResponse
-	7,  // 11: monad.AgentService.Status:output_type -> monad.AgentStatusResponse
-	9,  // 12: monad.AgentService.Peers:output_type -> monad.PeersResponse
-	12, // 13: monad.AgentService.Bootstrap:output_type -> monad.BootstrapResponse
-	14, // 14: monad.AgentService.Identity:output_type -> monad.IdentityResponse
-	8,  // [8:15] is the sub-list for method output_type
-	1,  // [1:8] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	21, // 1: monad.ListHandshakesResponse.handshakes:type_name -> monad.HandshakeInfo
+	21, // 2: monad.GetHandshakeResponse.handshake:type_name -> monad.HandshakeInfo
+	0,  // 3: monad.MonadStore.GetMonad:input_type -> monad.GetMonadRequest
+	2,  // 4: monad.MonadStore.WatchMonad:input_type -> monad.WatchMonadRequest
+	4,  // 5: monad.MonadStore.Status:input_type -> monad.StatusRequest
+	6,  // 6: monad.AgentService.Status:input_type -> monad.AgentStatusRequest
+	8,  // 7: monad.AgentService.Peers:input_type -> monad.PeersRequest
+	11, // 8: monad.AgentService.Bootstrap:input_type -> monad.BootstrapRequest
+	13, // 9: monad.AgentService.Identity:input_type -> monad.IdentityRequest
+	15, // 10: monad.AgentService.StartHandshake:input_type -> monad.StartHandshakeRequest
+	17, // 11: monad.AgentService.ListHandshakes:input_type -> monad.ListHandshakesRequest
+	19, // 12: monad.AgentService.GetHandshake:input_type -> monad.GetHandshakeRequest
+	22, // 13: monad.AgentService.ApproveHandshake:input_type -> monad.ApproveHandshakeRequest
+	24, // 14: monad.AgentService.RejectHandshake:input_type -> monad.RejectHandshakeRequest
+	26, // 15: monad.AgentService.WatchHandshakes:input_type -> monad.WatchHandshakesRequest
+	1,  // 16: monad.MonadStore.GetMonad:output_type -> monad.GetMonadResponse
+	3,  // 17: monad.MonadStore.WatchMonad:output_type -> monad.MonadUpdate
+	5,  // 18: monad.MonadStore.Status:output_type -> monad.StatusResponse
+	7,  // 19: monad.AgentService.Status:output_type -> monad.AgentStatusResponse
+	9,  // 20: monad.AgentService.Peers:output_type -> monad.PeersResponse
+	12, // 21: monad.AgentService.Bootstrap:output_type -> monad.BootstrapResponse
+	14, // 22: monad.AgentService.Identity:output_type -> monad.IdentityResponse
+	16, // 23: monad.AgentService.StartHandshake:output_type -> monad.StartHandshakeResponse
+	18, // 24: monad.AgentService.ListHandshakes:output_type -> monad.ListHandshakesResponse
+	20, // 25: monad.AgentService.GetHandshake:output_type -> monad.GetHandshakeResponse
+	23, // 26: monad.AgentService.ApproveHandshake:output_type -> monad.ApproveHandshakeResponse
+	25, // 27: monad.AgentService.RejectHandshake:output_type -> monad.RejectHandshakeResponse
+	27, // 28: monad.AgentService.WatchHandshakes:output_type -> monad.HandshakeEvent
+	16, // [16:29] is the sub-list for method output_type
+	3,  // [3:16] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_monad_proto_init() }
-func file_monad_proto_init() {
-	if File_monad_proto != nil {
+func init() { file_api_proto_monad_proto_init() }
+func file_api_proto_monad_proto_init() {
+	if File_api_proto_monad_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_monad_proto_rawDesc), len(file_monad_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_monad_proto_rawDesc), len(file_api_proto_monad_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
-		GoTypes:           file_monad_proto_goTypes,
-		DependencyIndexes: file_monad_proto_depIdxs,
-		MessageInfos:      file_monad_proto_msgTypes,
+		GoTypes:           file_api_proto_monad_proto_goTypes,
+		DependencyIndexes: file_api_proto_monad_proto_depIdxs,
+		MessageInfos:      file_api_proto_monad_proto_msgTypes,
 	}.Build()
-	File_monad_proto = out.File
-	file_monad_proto_goTypes = nil
-	file_monad_proto_depIdxs = nil
+	File_api_proto_monad_proto = out.File
+	file_api_proto_monad_proto_goTypes = nil
+	file_api_proto_monad_proto_depIdxs = nil
 }
