@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -838,4 +839,560 @@ func TestAttestation_InitiatorRejectsWrongMessageType(t *testing.T) {
 	if err.Error() != "unexpected message type: ATTESTATION_REQUEST" {
 		t.Errorf("unexpected error: %v", err)
 	}
+}
+
+// ===========================================================================
+// Vector Match Tests
+// ===========================================================================
+
+func TestVectorMatch_SuccessfulExchange(t *testing.T) {
+	// Create mock streams for communication
+	initiatorStream, responderStream := newMockStreamPair()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7, // 70% similarity required
+	}
+
+	// Create managers and handlers for both sides
+	initiatorManager := NewManager(nil, cfg)
+	responderManager := NewManager(nil, cfg)
+	initiatorHandler := NewStreamHandler(initiatorManager, logger)
+	responderHandler := NewStreamHandler(responderManager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create sessions and transition to VectorMatch state
+	initiatorSession := initiatorManager.CreateSession(testPeerID, protocol.RoleInitiator)
+	responderSession := responderManager.CreateSession(testPeerID, protocol.RoleResponder)
+
+	// Start state machines and transition to VectorMatch
+	initiatorSession.Handshake.Transition(protocol.EventInitiate)
+	initiatorSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	responderSession.Handshake.Transition(protocol.EventInitiate)
+	responderSession.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set up identical monads (100% similarity - should match)
+	testMonad := []float32{0.5, 0.5, 0.5, 0.5}
+	initiatorSession.LocalMonad = serializeFloat32Slice(testMonad)
+	responderSession.LocalMonad = serializeFloat32Slice(testMonad)
+
+	// Assign streams
+	initiatorSession.Stream = initiatorStream
+	responderSession.Stream = responderStream
+
+	var wg sync.WaitGroup
+	var initiatorErr, responderErr error
+
+	// Run responder in background (it needs to read first)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		responderErr = responderHandler.doVectorMatchResponder(responderSession)
+	}()
+
+	// Run initiator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		initiatorErr = initiatorHandler.doVectorMatchInitiator(initiatorSession)
+	}()
+
+	wg.Wait()
+
+	if initiatorErr != nil {
+		t.Errorf("initiator vector match failed: %v", initiatorErr)
+	}
+	if responderErr != nil {
+		t.Errorf("responder vector match failed: %v", responderErr)
+	}
+}
+
+func TestVectorMatch_NoMatch_BelowThreshold(t *testing.T) {
+	// Create mock streams for communication
+	initiatorStream, responderStream := newMockStreamPair()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.9, // 90% similarity required - high threshold
+	}
+
+	// Create managers and handlers for both sides
+	initiatorManager := NewManager(nil, cfg)
+	responderManager := NewManager(nil, cfg)
+	initiatorHandler := NewStreamHandler(initiatorManager, logger)
+	responderHandler := NewStreamHandler(responderManager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create sessions and transition to VectorMatch state
+	initiatorSession := initiatorManager.CreateSession(testPeerID, protocol.RoleInitiator)
+	responderSession := responderManager.CreateSession(testPeerID, protocol.RoleResponder)
+
+	// Start state machines and transition to VectorMatch
+	initiatorSession.Handshake.Transition(protocol.EventInitiate)
+	initiatorSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	responderSession.Handshake.Transition(protocol.EventInitiate)
+	responderSession.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set up orthogonal monads (0% similarity - should NOT match)
+	initiatorMonad := []float32{1.0, 0.0, 0.0, 0.0}
+	responderMonad := []float32{0.0, 1.0, 0.0, 0.0}
+	initiatorSession.LocalMonad = serializeFloat32Slice(initiatorMonad)
+	responderSession.LocalMonad = serializeFloat32Slice(responderMonad)
+
+	// Assign streams
+	initiatorSession.Stream = initiatorStream
+	responderSession.Stream = responderStream
+
+	var wg sync.WaitGroup
+	var initiatorErr, responderErr error
+
+	// Run responder in background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		responderErr = responderHandler.doVectorMatchResponder(responderSession)
+	}()
+
+	// Run initiator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		initiatorErr = initiatorHandler.doVectorMatchInitiator(initiatorSession)
+	}()
+
+	wg.Wait()
+
+	// Both sides should report a match failure
+	if initiatorErr == nil {
+		t.Error("expected initiator to report no match error")
+	}
+	if responderErr == nil {
+		t.Error("expected responder to report no match error")
+	}
+
+	// Verify error messages indicate no match
+	if initiatorErr != nil && initiatorErr.Error() != "vector match failed: below threshold" {
+		t.Errorf("unexpected initiator error: %v", initiatorErr)
+	}
+	if responderErr != nil && responderErr.Error() != "vector match failed: below threshold" {
+		t.Errorf("unexpected responder error: %v", responderErr)
+	}
+}
+
+func TestVectorMatchInitiator_SendsValidRequest(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create a buffer to capture what initiator writes
+	var buf bytes.Buffer
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set up a test monad
+	testMonad := []float32{0.5, 0.5, 0.5, 0.5}
+	session.LocalMonad = serializeFloat32Slice(testMonad)
+
+	// Use a pipe for reading (will close causing error) and buffer for writing
+	r, w := io.Pipe()
+	go func() {
+		// Let initiator write the request
+		time.Sleep(50 * time.Millisecond)
+		w.Close() // This will cause the read to fail, ending the test
+	}()
+
+	session.Stream = &mockStream{reader: r, writer: &buf}
+
+	// This will fail on read (as expected), but the request should be written
+	_ = handler.doVectorMatchInitiator(session)
+
+	// Verify the request was written
+	if buf.Len() == 0 {
+		t.Fatal("no data written by initiator")
+	}
+
+	// Parse the written envelope
+	env, err := ReadEnvelope(&buf)
+	if err != nil {
+		t.Fatalf("failed to read envelope: %v", err)
+	}
+
+	if env.Type != pb.MessageType_VECTOR_MATCH_REQUEST {
+		t.Errorf("expected VECTOR_MATCH_REQUEST, got %v", env.Type)
+	}
+
+	var payload pb.VectorMatchRequestPayload
+	if err := googleproto.Unmarshal(env.Payload, &payload); err != nil {
+		t.Fatalf("failed to unmarshal payload: %v", err)
+	}
+
+	if len(payload.EncryptedMonad) == 0 {
+		t.Error("expected non-empty encrypted monad")
+	}
+}
+
+func TestVectorMatchResponder_RejectsWrongMessageType(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create a message with wrong type
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_ATTESTATION_REQUEST, // Wrong type
+		Payload:   []byte("test"),
+		Timestamp: time.Now().Unix(),
+	}
+
+	session := manager.CreateSession(testPeerID, protocol.RoleResponder)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set local monad
+	testMonad := []float32{0.5, 0.5, 0.5, 0.5}
+	session.LocalMonad = serializeFloat32Slice(testMonad)
+
+	r, w := io.Pipe()
+	outputBuf := &bytes.Buffer{}
+	go func() {
+		WriteEnvelope(w, env)
+		w.Close()
+	}()
+
+	session.Stream = &mockStream{reader: r, writer: outputBuf}
+
+	err := handler.doVectorMatchResponder(session)
+	if err == nil {
+		t.Fatal("expected error for wrong message type")
+	}
+
+	if err.Error() != "unexpected message type: ATTESTATION_REQUEST" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestVectorMatch_StateTransitions(t *testing.T) {
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	t.Run("success transitions to DealBreakers", func(t *testing.T) {
+		h := protocol.NewHandshake(protocol.RoleInitiator, testPeerID, 0.7)
+
+		// Start in Idle -> Attestation -> VectorMatch
+		h.Transition(protocol.EventInitiate)
+		h.Transition(protocol.EventAttestationSuccess)
+
+		if h.State() != protocol.StateVectorMatch {
+			t.Errorf("expected StateVectorMatch, got %v", h.State())
+		}
+
+		// Success -> DealBreakers
+		if err := h.Transition(protocol.EventMatchAboveThreshold); err != nil {
+			t.Fatalf("failed to transition to deal breakers: %v", err)
+		}
+		if h.State() != protocol.StateDealBreakers {
+			t.Errorf("expected StateDealBreakers, got %v", h.State())
+		}
+	})
+
+	t.Run("failure transitions to Failed", func(t *testing.T) {
+		h := protocol.NewHandshake(protocol.RoleInitiator, testPeerID, 0.7)
+
+		// Start in Idle -> Attestation -> VectorMatch
+		h.Transition(protocol.EventInitiate)
+		h.Transition(protocol.EventAttestationSuccess)
+
+		// Failure -> Failed
+		if err := h.Transition(protocol.EventMatchBelowThreshold); err != nil {
+			t.Fatalf("failed to transition to failed: %v", err)
+		}
+		if h.State() != protocol.StateFailed {
+			t.Errorf("expected StateFailed, got %v", h.State())
+		}
+	})
+}
+
+func TestVectorMatchInitiator_RejectsEmptyMonad(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Do NOT set LocalMonad
+	session.LocalMonad = nil
+
+	var buf bytes.Buffer
+	session.Stream = &mockStream{reader: &buf, writer: &buf}
+
+	err := handler.doVectorMatchInitiator(session)
+	if err == nil {
+		t.Fatal("expected error for empty monad")
+	}
+
+	if err.Error() != "local monad not set" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestVectorMatchResponder_RejectsEmptyMonad(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create a valid request
+	reqPayload := &pb.VectorMatchRequestPayload{
+		PeerId:         "test-peer",
+		EncryptedMonad: serializeFloat32Slice([]float32{0.5, 0.5, 0.5, 0.5}),
+	}
+	payload, _ := googleproto.Marshal(reqPayload)
+
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_VECTOR_MATCH_REQUEST,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	session := manager.CreateSession(testPeerID, protocol.RoleResponder)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Do NOT set LocalMonad
+	session.LocalMonad = nil
+
+	r, w := io.Pipe()
+	outputBuf := &bytes.Buffer{}
+	go func() {
+		WriteEnvelope(w, env)
+		w.Close()
+	}()
+
+	session.Stream = &mockStream{reader: r, writer: outputBuf}
+
+	err := handler.doVectorMatchResponder(session)
+	if err == nil {
+		t.Fatal("expected error for empty monad")
+	}
+
+	if err.Error() != "local monad not set" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestVectorMatchInitiator_HandlesReject(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set local monad
+	testMonad := []float32{0.5, 0.5, 0.5, 0.5}
+	session.LocalMonad = serializeFloat32Slice(testMonad)
+
+	// Create a REJECT response
+	rejectPayload := &pb.RejectPayload{
+		Reason: "monad mismatch error",
+		Stage:  "vector_match",
+	}
+	rejectPayloadBytes, _ := googleproto.Marshal(rejectPayload)
+
+	rejectEnv := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_REJECT,
+		Payload:   rejectPayloadBytes,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Create pipes for communication
+	inputR, inputW := io.Pipe()
+
+	go func() {
+		// Read and discard the request from initiator
+		ReadEnvelope(inputR)
+	}()
+
+	// Create a reader that will provide the reject message
+	respBuf := &bytes.Buffer{}
+	WriteEnvelope(respBuf, rejectEnv)
+
+	session.Stream = &mockStream{
+		reader: respBuf,
+		writer: inputW,
+	}
+
+	err := handler.doVectorMatchInitiator(session)
+	if err == nil {
+		t.Fatal("expected error for rejection")
+	}
+
+	if err.Error() != "peer rejected: monad mismatch error" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestVectorMatchInitiator_RejectsWrongMessageType(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set local monad
+	testMonad := []float32{0.5, 0.5, 0.5, 0.5}
+	session.LocalMonad = serializeFloat32Slice(testMonad)
+
+	// Create a wrong message type (request instead of response)
+	wrongEnv := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_VECTOR_MATCH_REQUEST, // Wrong type
+		Payload:   []byte("test"),
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Create pipes for communication
+	inputR, inputW := io.Pipe()
+
+	go func() {
+		// Read and discard the request from initiator
+		ReadEnvelope(inputR)
+	}()
+
+	// Create a reader that will provide the wrong message type
+	respBuf := &bytes.Buffer{}
+	WriteEnvelope(respBuf, wrongEnv)
+
+	session.Stream = &mockStream{
+		reader: respBuf,
+		writer: inputW,
+	}
+
+	err := handler.doVectorMatchInitiator(session)
+	if err == nil {
+		t.Fatal("expected error for wrong message type")
+	}
+
+	if err.Error() != "unexpected message type: VECTOR_MATCH_REQUEST" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestVectorMatchResponder_InvalidPeerMonad(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create request with invalid monad (wrong length - not divisible by 4)
+	reqPayload := &pb.VectorMatchRequestPayload{
+		PeerId:         "test-peer",
+		EncryptedMonad: []byte{1, 2, 3}, // Invalid - not divisible by 4
+	}
+	payload, _ := googleproto.Marshal(reqPayload)
+
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_VECTOR_MATCH_REQUEST,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	session := manager.CreateSession(testPeerID, protocol.RoleResponder)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+
+	// Set valid local monad
+	testMonad := []float32{0.5, 0.5, 0.5, 0.5}
+	session.LocalMonad = serializeFloat32Slice(testMonad)
+
+	r, w := io.Pipe()
+	outputBuf := &bytes.Buffer{}
+	go func() {
+		WriteEnvelope(w, env)
+		w.Close()
+	}()
+
+	session.Stream = &mockStream{reader: r, writer: outputBuf}
+
+	err := handler.doVectorMatchResponder(session)
+	if err == nil {
+		t.Fatal("expected error for invalid peer monad")
+	}
+
+	// Should fail due to invalid monad format
+	if err.Error() != "failed to compute match: failed to deserialize peer monad: invalid monad data: length 3 not divisible by 4" {
+		t.Logf("got error (expected for invalid monad): %v", err)
+	}
+}
+
+// serializeFloat32Slice converts a slice of float32 to bytes.
+// This is a simple serialization for testing; in production this
+// would be part of a more robust encoding scheme.
+func serializeFloat32Slice(values []float32) []byte {
+	buf := make([]byte, len(values)*4)
+	for i, v := range values {
+		bits := *(*uint32)(unsafe.Pointer(&v))
+		buf[i*4] = byte(bits)
+		buf[i*4+1] = byte(bits >> 8)
+		buf[i*4+2] = byte(bits >> 16)
+		buf[i*4+3] = byte(bits >> 24)
+	}
+	return buf
 }

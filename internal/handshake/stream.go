@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	pb "github.com/mymonad/mymonad/api/proto"
+	"github.com/mymonad/mymonad/internal/tee"
 	"github.com/mymonad/mymonad/pkg/hashcash"
 	proto "github.com/mymonad/mymonad/pkg/protocol"
 	googleproto "google.golang.org/protobuf/proto"
@@ -142,9 +143,25 @@ func (h *StreamHandler) runInitiator(session *Session) {
 	}
 	session.Handshake.Transition(proto.EventAttestationSuccess)
 	h.emitStateChange(session)
-
-	// TODO: Continue to vector match in Task 13
 	h.logger.Info("initiator attestation complete", "session", session.ID)
+
+	// Stage 2: Vector Match
+	if err := h.doVectorMatchInitiator(session); err != nil {
+		h.logger.Error("vector match failed", "error", err)
+		session.Handshake.Transition(proto.EventMatchBelowThreshold)
+		h.manager.EmitEvent(Event{
+			SessionID: session.ID,
+			EventType: "failed",
+			State:     session.State().String(),
+			PeerID:    session.PeerID.String(),
+		})
+		return
+	}
+	session.Handshake.Transition(proto.EventMatchAboveThreshold)
+	h.emitStateChange(session)
+	h.logger.Info("initiator vector match complete", "session", session.ID)
+
+	// TODO: Continue to deal breakers in Task 14
 }
 
 // runResponder runs the responder side of the protocol.
@@ -163,9 +180,25 @@ func (h *StreamHandler) runResponder(session *Session) {
 	}
 	session.Handshake.Transition(proto.EventAttestationSuccess)
 	h.emitStateChange(session)
-
-	// TODO: Continue to vector match in Task 13
 	h.logger.Info("responder attestation complete", "session", session.ID)
+
+	// Stage 2: Vector Match
+	if err := h.doVectorMatchResponder(session); err != nil {
+		h.logger.Error("vector match failed", "error", err)
+		session.Handshake.Transition(proto.EventMatchBelowThreshold)
+		h.manager.EmitEvent(Event{
+			SessionID: session.ID,
+			EventType: "failed",
+			State:     session.State().String(),
+			PeerID:    session.PeerID.String(),
+		})
+		return
+	}
+	session.Handshake.Transition(proto.EventMatchAboveThreshold)
+	h.emitStateChange(session)
+	h.logger.Info("responder vector match complete", "session", session.ID)
+
+	// TODO: Continue to deal breakers in Task 14
 }
 
 // sendReject sends a reject message and closes the stream.
@@ -391,6 +424,190 @@ func (h *StreamHandler) doAttestationResponder(session *Session) error {
 	}
 
 	session.UpdateActivity()
+
+	return nil
+}
+
+// ===========================================================================
+// Vector Match Stage
+// ===========================================================================
+
+// doVectorMatchInitiator performs the initiator side of vector match.
+// The initiator sends their encrypted monad and receives match result.
+func (h *StreamHandler) doVectorMatchInitiator(session *Session) error {
+	// Verify we have our monad
+	if len(session.LocalMonad) == 0 {
+		return fmt.Errorf("local monad not set")
+	}
+
+	// Get our peer ID
+	var myPeerID string
+	if h.manager.host != nil {
+		myPeerID = h.manager.host.ID().String()
+	} else {
+		myPeerID = "unknown"
+	}
+
+	// Create vector match request payload
+	reqPayload := &pb.VectorMatchRequestPayload{
+		PeerId:         myPeerID,
+		EncryptedMonad: session.LocalMonad, // In production, this would be encrypted
+	}
+
+	payload, err := googleproto.Marshal(reqPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	// Send request
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_VECTOR_MATCH_REQUEST,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending vector match request",
+		"session", session.ID,
+		"monad_size", len(session.LocalMonad),
+	)
+
+	if err := WriteEnvelope(session.Stream, env); err != nil {
+		return fmt.Errorf("failed to send vector match request: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Read response
+	respEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read vector match response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Handle rejection
+	if respEnv.Type == pb.MessageType_REJECT {
+		var rejectPayload pb.RejectPayload
+		if err := googleproto.Unmarshal(respEnv.Payload, &rejectPayload); err != nil {
+			return fmt.Errorf("peer rejected (unable to parse reason)")
+		}
+		return fmt.Errorf("peer rejected: %s", rejectPayload.Reason)
+	}
+
+	// Verify message type
+	if respEnv.Type != pb.MessageType_VECTOR_MATCH_RESPONSE {
+		return fmt.Errorf("unexpected message type: %v", respEnv.Type)
+	}
+
+	// Parse response payload
+	var respPayload pb.VectorMatchResponsePayload
+	if err := googleproto.Unmarshal(respEnv.Payload, &respPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	h.logger.Debug("received vector match response",
+		"session", session.ID,
+		"peer", respPayload.PeerId,
+		"matched", respPayload.Matched,
+	)
+
+	// Check if we matched
+	if !respPayload.Matched {
+		return fmt.Errorf("vector match failed: below threshold")
+	}
+
+	return nil
+}
+
+// doVectorMatchResponder performs the responder side of vector match.
+// The responder receives peer monad, computes similarity, and sends result.
+func (h *StreamHandler) doVectorMatchResponder(session *Session) error {
+	// Verify we have our monad
+	if len(session.LocalMonad) == 0 {
+		return fmt.Errorf("local monad not set")
+	}
+
+	// Read request
+	reqEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read vector match request: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Verify message type
+	if reqEnv.Type != pb.MessageType_VECTOR_MATCH_REQUEST {
+		return fmt.Errorf("unexpected message type: %v", reqEnv.Type)
+	}
+
+	// Parse request payload
+	var reqPayload pb.VectorMatchRequestPayload
+	if err := googleproto.Unmarshal(reqEnv.Payload, &reqPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal request: %w", err)
+	}
+
+	h.logger.Debug("received vector match request",
+		"session", session.ID,
+		"peer", reqPayload.PeerId,
+		"monad_size", len(reqPayload.EncryptedMonad),
+	)
+
+	// Store peer's monad for later use (will be cleaned up when session ends)
+	session.PeerMonad = reqPayload.EncryptedMonad
+
+	// Get threshold from the handshake (which got it from manager config)
+	threshold := session.Handshake.Threshold()
+
+	// Compute match using MockTEE
+	// In production, this would run inside SGX
+	matched, err := tee.ComputeMatch(session.LocalMonad, session.PeerMonad, threshold)
+	if err != nil {
+		h.sendRejectWithReason(session.Stream, "failed to compute match", "vector_match")
+		return fmt.Errorf("failed to compute match: %w", err)
+	}
+
+	// Get our peer ID
+	var myPeerID string
+	if h.manager.host != nil {
+		myPeerID = h.manager.host.ID().String()
+	} else {
+		myPeerID = "unknown"
+	}
+
+	// Create response payload
+	// Note: We only reveal matched/not-matched, not the actual score
+	respPayload := &pb.VectorMatchResponsePayload{
+		PeerId:  myPeerID,
+		Matched: matched,
+	}
+
+	payload, err := googleproto.Marshal(respPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response payload: %w", err)
+	}
+
+	// Send response
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_VECTOR_MATCH_RESPONSE,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending vector match response",
+		"session", session.ID,
+		"matched", matched,
+	)
+
+	if err := WriteEnvelope(session.Stream, env); err != nil {
+		return fmt.Errorf("failed to send vector match response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// If not matched, return error so caller knows to fail
+	if !matched {
+		return fmt.Errorf("vector match failed: below threshold")
+	}
 
 	return nil
 }
