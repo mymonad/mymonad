@@ -13,10 +13,16 @@ import (
 
 // mockAgentServiceClient is a mock implementation of AgentServiceClient for testing.
 type mockAgentServiceClient struct {
-	statusFn    func(ctx context.Context, in *pb.AgentStatusRequest, opts ...grpc.CallOption) (*pb.AgentStatusResponse, error)
-	peersFn     func(ctx context.Context, in *pb.PeersRequest, opts ...grpc.CallOption) (*pb.PeersResponse, error)
-	bootstrapFn func(ctx context.Context, in *pb.BootstrapRequest, opts ...grpc.CallOption) (*pb.BootstrapResponse, error)
-	identityFn  func(ctx context.Context, in *pb.IdentityRequest, opts ...grpc.CallOption) (*pb.IdentityResponse, error)
+	statusFn          func(ctx context.Context, in *pb.AgentStatusRequest, opts ...grpc.CallOption) (*pb.AgentStatusResponse, error)
+	peersFn           func(ctx context.Context, in *pb.PeersRequest, opts ...grpc.CallOption) (*pb.PeersResponse, error)
+	bootstrapFn       func(ctx context.Context, in *pb.BootstrapRequest, opts ...grpc.CallOption) (*pb.BootstrapResponse, error)
+	identityFn        func(ctx context.Context, in *pb.IdentityRequest, opts ...grpc.CallOption) (*pb.IdentityResponse, error)
+	startHandshakeFn  func(ctx context.Context, in *pb.StartHandshakeRequest, opts ...grpc.CallOption) (*pb.StartHandshakeResponse, error)
+	listHandshakesFn  func(ctx context.Context, in *pb.ListHandshakesRequest, opts ...grpc.CallOption) (*pb.ListHandshakesResponse, error)
+	getHandshakeFn    func(ctx context.Context, in *pb.GetHandshakeRequest, opts ...grpc.CallOption) (*pb.GetHandshakeResponse, error)
+	approveHandshakeFn func(ctx context.Context, in *pb.ApproveHandshakeRequest, opts ...grpc.CallOption) (*pb.ApproveHandshakeResponse, error)
+	rejectHandshakeFn func(ctx context.Context, in *pb.RejectHandshakeRequest, opts ...grpc.CallOption) (*pb.RejectHandshakeResponse, error)
+	watchHandshakesFn func(ctx context.Context, in *pb.WatchHandshakesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.HandshakeEvent], error)
 }
 
 func (m *mockAgentServiceClient) Status(ctx context.Context, in *pb.AgentStatusRequest, opts ...grpc.CallOption) (*pb.AgentStatusResponse, error) {
@@ -45,6 +51,48 @@ func (m *mockAgentServiceClient) Identity(ctx context.Context, in *pb.IdentityRe
 		return m.identityFn(ctx, in, opts...)
 	}
 	return nil, errors.New("Identity not mocked")
+}
+
+func (m *mockAgentServiceClient) StartHandshake(ctx context.Context, in *pb.StartHandshakeRequest, opts ...grpc.CallOption) (*pb.StartHandshakeResponse, error) {
+	if m.startHandshakeFn != nil {
+		return m.startHandshakeFn(ctx, in, opts...)
+	}
+	return nil, errors.New("StartHandshake not mocked")
+}
+
+func (m *mockAgentServiceClient) ListHandshakes(ctx context.Context, in *pb.ListHandshakesRequest, opts ...grpc.CallOption) (*pb.ListHandshakesResponse, error) {
+	if m.listHandshakesFn != nil {
+		return m.listHandshakesFn(ctx, in, opts...)
+	}
+	return nil, errors.New("ListHandshakes not mocked")
+}
+
+func (m *mockAgentServiceClient) GetHandshake(ctx context.Context, in *pb.GetHandshakeRequest, opts ...grpc.CallOption) (*pb.GetHandshakeResponse, error) {
+	if m.getHandshakeFn != nil {
+		return m.getHandshakeFn(ctx, in, opts...)
+	}
+	return nil, errors.New("GetHandshake not mocked")
+}
+
+func (m *mockAgentServiceClient) ApproveHandshake(ctx context.Context, in *pb.ApproveHandshakeRequest, opts ...grpc.CallOption) (*pb.ApproveHandshakeResponse, error) {
+	if m.approveHandshakeFn != nil {
+		return m.approveHandshakeFn(ctx, in, opts...)
+	}
+	return nil, errors.New("ApproveHandshake not mocked")
+}
+
+func (m *mockAgentServiceClient) RejectHandshake(ctx context.Context, in *pb.RejectHandshakeRequest, opts ...grpc.CallOption) (*pb.RejectHandshakeResponse, error) {
+	if m.rejectHandshakeFn != nil {
+		return m.rejectHandshakeFn(ctx, in, opts...)
+	}
+	return nil, errors.New("RejectHandshake not mocked")
+}
+
+func (m *mockAgentServiceClient) WatchHandshakes(ctx context.Context, in *pb.WatchHandshakesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.HandshakeEvent], error) {
+	if m.watchHandshakesFn != nil {
+		return m.watchHandshakesFn(ctx, in, opts...)
+	}
+	return nil, errors.New("WatchHandshakes not mocked")
 }
 
 // mockMonadStoreClient is a mock implementation of MonadStoreClient for testing.
@@ -554,5 +602,688 @@ func TestCLI_Close(t *testing.T) {
 func TestErrEmptyAddress(t *testing.T) {
 	if ErrEmptyAddress.Error() != "multiaddr cannot be empty" {
 		t.Errorf("ErrEmptyAddress has unexpected message: %v", ErrEmptyAddress)
+	}
+}
+
+// Handshake command tests
+
+func TestCLI_Handshake_NoSubcommand(t *testing.T) {
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: &mockAgentServiceClient{},
+		output:      &out,
+	}
+
+	err := cli.Handshake([]string{})
+	if err == nil {
+		t.Fatal("Handshake() should return error when no subcommand provided")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("usage")) {
+		t.Errorf("Error should contain usage info, got: %v", err)
+	}
+}
+
+func TestCLI_Handshake_UnknownSubcommand(t *testing.T) {
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: &mockAgentServiceClient{},
+		output:      &out,
+	}
+
+	err := cli.Handshake([]string{"unknown"})
+	if err == nil {
+		t.Fatal("Handshake() should return error for unknown subcommand")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("unknown handshake subcommand")) {
+		t.Errorf("Error should mention unknown subcommand, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeStart_Success(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		startHandshakeFn: func(ctx context.Context, in *pb.StartHandshakeRequest, opts ...grpc.CallOption) (*pb.StartHandshakeResponse, error) {
+			if in.PeerId != "12D3KooWTestPeer" {
+				t.Errorf("Unexpected peer ID: %s", in.PeerId)
+			}
+			return &pb.StartHandshakeResponse{
+				SessionId: "session-123",
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeStart([]string{"12D3KooWTestPeer"})
+	if err != nil {
+		t.Fatalf("HandshakeStart() returned error: %v", err)
+	}
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("session-123")) {
+		t.Errorf("Output should contain session ID, got: %s", output)
+	}
+}
+
+func TestCLI_HandshakeStart_NoPeerID(t *testing.T) {
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: &mockAgentServiceClient{},
+		output:      &out,
+	}
+
+	err := cli.HandshakeStart([]string{})
+	if err == nil {
+		t.Fatal("HandshakeStart() should return error when no peer ID provided")
+	}
+}
+
+func TestCLI_HandshakeStart_Error(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		startHandshakeFn: func(ctx context.Context, in *pb.StartHandshakeRequest, opts ...grpc.CallOption) (*pb.StartHandshakeResponse, error) {
+			return &pb.StartHandshakeResponse{
+				Error: "peer not found",
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeStart([]string{"invalid-peer"})
+	if err == nil {
+		t.Fatal("HandshakeStart() should return error when handshake fails")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("peer not found")) {
+		t.Errorf("Error should contain reason, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeList_Success(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		listHandshakesFn: func(ctx context.Context, in *pb.ListHandshakesRequest, opts ...grpc.CallOption) (*pb.ListHandshakesResponse, error) {
+			return &pb.ListHandshakesResponse{
+				Handshakes: []*pb.HandshakeInfo{
+					{
+						SessionId:      "session-1",
+						PeerId:         "12D3KooWPeer1",
+						State:          "attestation",
+						Role:           "initiator",
+						ElapsedSeconds: 30,
+					},
+					{
+						SessionId:           "session-2",
+						PeerId:              "12D3KooWPeer2",
+						State:               "unmask",
+						Role:                "responder",
+						ElapsedSeconds:      120,
+						PendingApproval:     true,
+						PendingApprovalType: "unmask",
+					},
+				},
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeList()
+	if err != nil {
+		t.Fatalf("HandshakeList() returned error: %v", err)
+	}
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("session-1")) {
+		t.Errorf("Output should contain session-1, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("PENDING")) {
+		t.Errorf("Output should indicate pending approval, got: %s", output)
+	}
+}
+
+func TestCLI_HandshakeList_Empty(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		listHandshakesFn: func(ctx context.Context, in *pb.ListHandshakesRequest, opts ...grpc.CallOption) (*pb.ListHandshakesResponse, error) {
+			return &pb.ListHandshakesResponse{
+				Handshakes: []*pb.HandshakeInfo{},
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeList()
+	if err != nil {
+		t.Fatalf("HandshakeList() returned error: %v", err)
+	}
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("No active handshakes")) {
+		t.Errorf("Output should indicate no handshakes, got: %s", output)
+	}
+}
+
+func TestCLI_HandshakeShow_Success(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		getHandshakeFn: func(ctx context.Context, in *pb.GetHandshakeRequest, opts ...grpc.CallOption) (*pb.GetHandshakeResponse, error) {
+			return &pb.GetHandshakeResponse{
+				Handshake: &pb.HandshakeInfo{
+					SessionId:           "session-123",
+					PeerId:              "12D3KooWTestPeer",
+					State:               "vector_match",
+					Role:                "initiator",
+					ElapsedSeconds:      45,
+					PendingApproval:     true,
+					PendingApprovalType: "vector_match",
+				},
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeShow([]string{"session-123"})
+	if err != nil {
+		t.Fatalf("HandshakeShow() returned error: %v", err)
+	}
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("session-123")) {
+		t.Errorf("Output should contain session ID, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("vector_match")) {
+		t.Errorf("Output should contain state, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("Pending")) {
+		t.Errorf("Output should indicate pending approval, got: %s", output)
+	}
+}
+
+func TestCLI_HandshakeShow_NoSessionID(t *testing.T) {
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: &mockAgentServiceClient{},
+		output:      &out,
+	}
+
+	err := cli.HandshakeShow([]string{})
+	if err == nil {
+		t.Fatal("HandshakeShow() should return error when no session ID provided")
+	}
+}
+
+func TestCLI_HandshakeShow_Error(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		getHandshakeFn: func(ctx context.Context, in *pb.GetHandshakeRequest, opts ...grpc.CallOption) (*pb.GetHandshakeResponse, error) {
+			return &pb.GetHandshakeResponse{
+				Error: "session not found",
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeShow([]string{"invalid-session"})
+	if err == nil {
+		t.Fatal("HandshakeShow() should return error when session not found")
+	}
+}
+
+func TestCLI_HandshakeApprove_Success(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		approveHandshakeFn: func(ctx context.Context, in *pb.ApproveHandshakeRequest, opts ...grpc.CallOption) (*pb.ApproveHandshakeResponse, error) {
+			if in.SessionId != "session-123" {
+				t.Errorf("Unexpected session ID: %s", in.SessionId)
+			}
+			return &pb.ApproveHandshakeResponse{
+				Success: true,
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeApprove([]string{"session-123"})
+	if err != nil {
+		t.Fatalf("HandshakeApprove() returned error: %v", err)
+	}
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("approved")) {
+		t.Errorf("Output should indicate approval, got: %s", output)
+	}
+}
+
+func TestCLI_HandshakeApprove_NoSessionID(t *testing.T) {
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: &mockAgentServiceClient{},
+		output:      &out,
+	}
+
+	err := cli.HandshakeApprove([]string{})
+	if err == nil {
+		t.Fatal("HandshakeApprove() should return error when no session ID provided")
+	}
+}
+
+func TestCLI_HandshakeApprove_Failure(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		approveHandshakeFn: func(ctx context.Context, in *pb.ApproveHandshakeRequest, opts ...grpc.CallOption) (*pb.ApproveHandshakeResponse, error) {
+			return &pb.ApproveHandshakeResponse{
+				Success: false,
+				Error:   "nothing to approve",
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeApprove([]string{"session-123"})
+	if err == nil {
+		t.Fatal("HandshakeApprove() should return error when approval fails")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("nothing to approve")) {
+		t.Errorf("Error should contain reason, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeReject_Success(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		rejectHandshakeFn: func(ctx context.Context, in *pb.RejectHandshakeRequest, opts ...grpc.CallOption) (*pb.RejectHandshakeResponse, error) {
+			if in.SessionId != "session-123" {
+				t.Errorf("Unexpected session ID: %s", in.SessionId)
+			}
+			if in.Reason != "not interested" {
+				t.Errorf("Unexpected reason: %s", in.Reason)
+			}
+			return &pb.RejectHandshakeResponse{
+				Success: true,
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeReject([]string{"session-123", "not interested"})
+	if err != nil {
+		t.Fatalf("HandshakeReject() returned error: %v", err)
+	}
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("rejected")) {
+		t.Errorf("Output should indicate rejection, got: %s", output)
+	}
+}
+
+func TestCLI_HandshakeReject_NoReason(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		rejectHandshakeFn: func(ctx context.Context, in *pb.RejectHandshakeRequest, opts ...grpc.CallOption) (*pb.RejectHandshakeResponse, error) {
+			if in.Reason != "" {
+				t.Errorf("Reason should be empty when not provided, got: %s", in.Reason)
+			}
+			return &pb.RejectHandshakeResponse{
+				Success: true,
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeReject([]string{"session-123"})
+	if err != nil {
+		t.Fatalf("HandshakeReject() returned error: %v", err)
+	}
+}
+
+func TestCLI_HandshakeReject_NoSessionID(t *testing.T) {
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: &mockAgentServiceClient{},
+		output:      &out,
+	}
+
+	err := cli.HandshakeReject([]string{})
+	if err == nil {
+		t.Fatal("HandshakeReject() should return error when no session ID provided")
+	}
+}
+
+func TestTruncatePeerID(t *testing.T) {
+	tests := []struct {
+		name   string
+		peerID string
+		want   string
+	}{
+		{
+			name:   "short peer ID",
+			peerID: "12D3KooW",
+			want:   "12D3KooW",
+		},
+		{
+			name:   "exact 16 chars",
+			peerID: "12D3KooWTestPeer",
+			want:   "12D3KooWTestPeer",
+		},
+		{
+			name:   "long peer ID",
+			peerID: "12D3KooWTestPeerVeryLong",
+			want:   "12D3KooWTestPeer...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncatePeerID(tt.peerID)
+			if got != tt.want {
+				t.Errorf("truncatePeerID(%s) = %s, want %s", tt.peerID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncateSessionID(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+		want      string
+	}{
+		{
+			name:      "short session ID",
+			sessionID: "abc123",
+			want:      "abc123",
+		},
+		{
+			name:      "exact 8 chars",
+			sessionID: "abcd1234",
+			want:      "abcd1234",
+		},
+		{
+			name:      "long session ID",
+			sessionID: "abcd1234-5678-90ab",
+			want:      "abcd1234...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateSessionID(tt.sessionID)
+			if got != tt.want {
+				t.Errorf("truncateSessionID(%s) = %s, want %s", tt.sessionID, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintUsage_IncludesHandshake(t *testing.T) {
+	var out bytes.Buffer
+	printUsageTo(&out)
+
+	output := out.String()
+	if !bytes.Contains([]byte(output), []byte("handshake")) {
+		t.Errorf("Usage output missing 'handshake' command, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("start")) {
+		t.Errorf("Usage output missing 'start' subcommand, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("list")) {
+		t.Errorf("Usage output missing 'list' subcommand, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("approve")) {
+		t.Errorf("Usage output missing 'approve' subcommand, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("reject")) {
+		t.Errorf("Usage output missing 'reject' subcommand, got: %s", output)
+	}
+	if !bytes.Contains([]byte(output), []byte("watch")) {
+		t.Errorf("Usage output missing 'watch' subcommand, got: %s", output)
+	}
+}
+
+func TestCLI_Handshake_SubcommandDispatch(t *testing.T) {
+	// Test that all subcommands dispatch correctly
+	subcommands := []string{"start", "list", "show", "approve", "reject", "watch"}
+
+	for _, sub := range subcommands {
+		t.Run(sub, func(t *testing.T) {
+			var out bytes.Buffer
+			cli := &CLI{
+				agentClient: &mockAgentServiceClient{},
+				output:      &out,
+			}
+
+			// We expect these to fail since mocks aren't set up, but we're testing dispatch
+			_ = cli.Handshake([]string{sub})
+			// Just verify we don't panic
+		})
+	}
+}
+
+func TestCLI_HandshakeList_RPCError(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		listHandshakesFn: func(ctx context.Context, in *pb.ListHandshakesRequest, opts ...grpc.CallOption) (*pb.ListHandshakesResponse, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeList()
+	if err == nil {
+		t.Fatal("HandshakeList() should return error on RPC failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("failed to list handshakes")) {
+		t.Errorf("Error should indicate list failure, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeShow_RPCError(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		getHandshakeFn: func(ctx context.Context, in *pb.GetHandshakeRequest, opts ...grpc.CallOption) (*pb.GetHandshakeResponse, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeShow([]string{"session-123"})
+	if err == nil {
+		t.Fatal("HandshakeShow() should return error on RPC failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("failed to get handshake")) {
+		t.Errorf("Error should indicate get failure, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeApprove_RPCError(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		approveHandshakeFn: func(ctx context.Context, in *pb.ApproveHandshakeRequest, opts ...grpc.CallOption) (*pb.ApproveHandshakeResponse, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeApprove([]string{"session-123"})
+	if err == nil {
+		t.Fatal("HandshakeApprove() should return error on RPC failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("failed to approve")) {
+		t.Errorf("Error should indicate approve failure, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeReject_RPCError(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		rejectHandshakeFn: func(ctx context.Context, in *pb.RejectHandshakeRequest, opts ...grpc.CallOption) (*pb.RejectHandshakeResponse, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeReject([]string{"session-123"})
+	if err == nil {
+		t.Fatal("HandshakeReject() should return error on RPC failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("failed to reject")) {
+		t.Errorf("Error should indicate reject failure, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeReject_Failure(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		rejectHandshakeFn: func(ctx context.Context, in *pb.RejectHandshakeRequest, opts ...grpc.CallOption) (*pb.RejectHandshakeResponse, error) {
+			return &pb.RejectHandshakeResponse{
+				Success: false,
+				Error:   "session already completed",
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeReject([]string{"session-123"})
+	if err == nil {
+		t.Fatal("HandshakeReject() should return error when rejection fails")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("session already completed")) {
+		t.Errorf("Error should contain reason, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeStart_RPCError(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		startHandshakeFn: func(ctx context.Context, in *pb.StartHandshakeRequest, opts ...grpc.CallOption) (*pb.StartHandshakeResponse, error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeStart([]string{"peer-id"})
+	if err == nil {
+		t.Fatal("HandshakeStart() should return error on RPC failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("failed to start handshake")) {
+		t.Errorf("Error should indicate start failure, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeWatch_RPCError(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		watchHandshakesFn: func(ctx context.Context, in *pb.WatchHandshakesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[pb.HandshakeEvent], error) {
+			return nil, errors.New("connection refused")
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeWatch()
+	if err == nil {
+		t.Fatal("HandshakeWatch() should return error on RPC failure")
+	}
+	if !bytes.Contains([]byte(err.Error()), []byte("failed to watch")) {
+		t.Errorf("Error should indicate watch failure, got: %v", err)
+	}
+}
+
+func TestCLI_HandshakeShow_NoPendingApproval(t *testing.T) {
+	agentMock := &mockAgentServiceClient{
+		getHandshakeFn: func(ctx context.Context, in *pb.GetHandshakeRequest, opts ...grpc.CallOption) (*pb.GetHandshakeResponse, error) {
+			return &pb.GetHandshakeResponse{
+				Handshake: &pb.HandshakeInfo{
+					SessionId:       "session-123",
+					PeerId:          "12D3KooWTestPeer",
+					State:           "attestation",
+					Role:            "initiator",
+					ElapsedSeconds:  10,
+					PendingApproval: false,
+				},
+			}, nil
+		},
+	}
+
+	var out bytes.Buffer
+	cli := &CLI{
+		agentClient: agentMock,
+		output:      &out,
+	}
+
+	err := cli.HandshakeShow([]string{"session-123"})
+	if err != nil {
+		t.Fatalf("HandshakeShow() returned error: %v", err)
+	}
+
+	output := out.String()
+	// Should NOT contain "Pending:" line when there's no pending approval
+	if bytes.Contains([]byte(output), []byte("Pending:")) {
+		t.Errorf("Output should not show pending line when no approval pending, got: %s", output)
 	}
 }

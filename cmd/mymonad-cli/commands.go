@@ -274,10 +274,252 @@ func printUsageTo(w io.Writer) {
 	fmt.Fprintln(w, "  peers               List connected peers")
 	fmt.Fprintln(w, "  bootstrap <addr>    Manually connect to a peer")
 	fmt.Fprintln(w, "  identity            Show local DID and peer ID")
+	fmt.Fprintln(w, "  handshake           Manage handshake sessions")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "Handshake Subcommands:")
+	fmt.Fprintln(w, "  handshake start <peer-id>      Start a handshake with a peer")
+	fmt.Fprintln(w, "  handshake list                 List all active handshakes")
+	fmt.Fprintln(w, "  handshake show <session-id>    Show details of a handshake")
+	fmt.Fprintln(w, "  handshake approve <session-id> Approve a pending handshake")
+	fmt.Fprintln(w, "  handshake reject <session-id>  Reject a handshake")
+	fmt.Fprintln(w, "  handshake watch                Watch handshake events in real-time")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Examples:")
 	fmt.Fprintln(w, "  mymonad-cli status")
 	fmt.Fprintln(w, "  mymonad-cli peers")
 	fmt.Fprintln(w, "  mymonad-cli bootstrap /ip4/192.168.1.1/tcp/4001/p2p/12D3KooW...")
 	fmt.Fprintln(w, "  mymonad-cli identity")
+	fmt.Fprintln(w, "  mymonad-cli handshake start 12D3KooW...")
+	fmt.Fprintln(w, "  mymonad-cli handshake list")
+}
+
+// Handshake dispatches handshake subcommands.
+func (c *CLI) Handshake(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: mymonad-cli handshake <subcommand>\nsubcommands: start, list, show, approve, reject, watch")
+	}
+
+	subcommand := args[0]
+	subargs := args[1:]
+
+	switch subcommand {
+	case "start":
+		return c.HandshakeStart(subargs)
+	case "list":
+		return c.HandshakeList()
+	case "show":
+		return c.HandshakeShow(subargs)
+	case "approve":
+		return c.HandshakeApprove(subargs)
+	case "reject":
+		return c.HandshakeReject(subargs)
+	case "watch":
+		return c.HandshakeWatch()
+	default:
+		return fmt.Errorf("unknown handshake subcommand: %s", subcommand)
+	}
+}
+
+// HandshakeStart initiates a handshake with a peer.
+func (c *CLI) HandshakeStart(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: mymonad-cli handshake start <peer-id>")
+	}
+	peerID := args[0]
+
+	if err := c.connectAgent(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.agentClient.StartHandshake(ctx, &pb.StartHandshakeRequest{
+		PeerId: peerID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start handshake: %w", err)
+	}
+
+	if resp.Error != "" {
+		return fmt.Errorf("handshake error: %s", resp.Error)
+	}
+
+	fmt.Fprintf(c.output, "Handshake started: session_id=%s\n", resp.SessionId)
+	return nil
+}
+
+// HandshakeList lists all active handshakes.
+func (c *CLI) HandshakeList() error {
+	if err := c.connectAgent(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.agentClient.ListHandshakes(ctx, &pb.ListHandshakesRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to list handshakes: %w", err)
+	}
+
+	if len(resp.Handshakes) == 0 {
+		fmt.Fprintln(c.output, "No active handshakes")
+		return nil
+	}
+
+	fmt.Fprintf(c.output, "%-36s  %-12s  %-10s  %-8s  %s\n", "SESSION", "STATE", "ROLE", "ELAPSED", "PEER")
+	for _, h := range resp.Handshakes {
+		pending := ""
+		if h.PendingApproval {
+			pending = fmt.Sprintf(" [PENDING: %s]", h.PendingApprovalType)
+		}
+		fmt.Fprintf(c.output, "%-36s  %-12s  %-10s  %-8ds  %s%s\n",
+			h.SessionId, h.State, h.Role, h.ElapsedSeconds, truncatePeerID(h.PeerId), pending)
+	}
+
+	return nil
+}
+
+// HandshakeShow displays details of a specific handshake.
+func (c *CLI) HandshakeShow(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: mymonad-cli handshake show <session-id>")
+	}
+	sessionID := args[0]
+
+	if err := c.connectAgent(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.agentClient.GetHandshake(ctx, &pb.GetHandshakeRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get handshake: %w", err)
+	}
+
+	if resp.Error != "" {
+		return fmt.Errorf("error: %s", resp.Error)
+	}
+
+	h := resp.Handshake
+	fmt.Fprintf(c.output, "Session ID: %s\n", h.SessionId)
+	fmt.Fprintf(c.output, "Peer ID:    %s\n", h.PeerId)
+	fmt.Fprintf(c.output, "State:      %s\n", h.State)
+	fmt.Fprintf(c.output, "Role:       %s\n", h.Role)
+	fmt.Fprintf(c.output, "Elapsed:    %d seconds\n", h.ElapsedSeconds)
+	if h.PendingApproval {
+		fmt.Fprintf(c.output, "Pending:    %s\n", h.PendingApprovalType)
+	}
+
+	return nil
+}
+
+// HandshakeApprove approves a pending handshake.
+func (c *CLI) HandshakeApprove(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: mymonad-cli handshake approve <session-id>")
+	}
+	sessionID := args[0]
+
+	if err := c.connectAgent(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.agentClient.ApproveHandshake(ctx, &pb.ApproveHandshakeRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to approve: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("approval failed: %s", resp.Error)
+	}
+
+	fmt.Fprintln(c.output, "Handshake approved")
+	return nil
+}
+
+// HandshakeReject rejects a handshake.
+func (c *CLI) HandshakeReject(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: mymonad-cli handshake reject <session-id> [reason]")
+	}
+	sessionID := args[0]
+	reason := ""
+	if len(args) > 1 {
+		reason = args[1]
+	}
+
+	if err := c.connectAgent(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	defer cancel()
+
+	resp, err := c.agentClient.RejectHandshake(ctx, &pb.RejectHandshakeRequest{
+		SessionId: sessionID,
+		Reason:    reason,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reject: %w", err)
+	}
+
+	if !resp.Success {
+		return fmt.Errorf("rejection failed: %s", resp.Error)
+	}
+
+	fmt.Fprintln(c.output, "Handshake rejected")
+	return nil
+}
+
+// HandshakeWatch watches handshake events in real-time.
+func (c *CLI) HandshakeWatch() error {
+	if err := c.connectAgent(); err != nil {
+		return err
+	}
+
+	// No timeout for watch - it's a long-running stream
+	stream, err := c.agentClient.WatchHandshakes(context.Background(), &pb.WatchHandshakesRequest{})
+	if err != nil {
+		return fmt.Errorf("failed to watch: %w", err)
+	}
+
+	fmt.Fprintln(c.output, "Watching handshake events (Ctrl+C to stop)...")
+
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			return fmt.Errorf("stream error: %w", err)
+		}
+
+		fmt.Fprintf(c.output, "[%s] session=%s peer=%s state=%s elapsed=%ds\n",
+			event.EventType, truncateSessionID(event.SessionId), truncatePeerID(event.PeerId),
+			event.State, event.ElapsedSeconds)
+	}
+}
+
+// truncatePeerID truncates long peer IDs for display.
+func truncatePeerID(peerID string) string {
+	if len(peerID) > 16 {
+		return peerID[:16] + "..."
+	}
+	return peerID
+}
+
+// truncateSessionID truncates session IDs for display.
+func truncateSessionID(sessionID string) string {
+	if len(sessionID) > 8 {
+		return sessionID[:8] + "..."
+	}
+	return sessionID
 }
