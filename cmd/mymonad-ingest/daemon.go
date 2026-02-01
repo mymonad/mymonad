@@ -116,8 +116,8 @@ func NewDaemon(cfg DaemonConfig, embedder embed.Embedder) (*Daemon, error) {
 		} else {
 			logger.Info("loaded existing monad",
 				"path", cfg.MonadPath,
-				"version", m.Version,
-				"docCount", m.DocCount,
+				"version", m.GetVersion(),
+				"docCount", m.GetDocCount(),
 			)
 		}
 	} else {
@@ -286,8 +286,8 @@ func (d *Daemon) processFile(ctx context.Context, path string) {
 
 	d.logger.Info("file processed",
 		"path", path,
-		"monadVersion", d.monad.Version,
-		"docCount", d.monad.DocCount,
+		"monadVersion", d.monad.GetVersion(),
+		"docCount", d.monad.GetDocCount(),
 	)
 }
 
@@ -358,8 +358,8 @@ func (d *Daemon) saveMonad() error {
 
 	d.logger.Info("monad saved",
 		"path", d.cfg.MonadPath,
-		"version", d.monad.Version,
-		"docCount", d.monad.DocCount,
+		"version", d.monad.GetVersion(),
+		"docCount", d.monad.GetDocCount(),
 	)
 	return nil
 }
@@ -377,12 +377,12 @@ func (d *Daemon) GetMonad() ([]byte, int64, error) {
 	if err != nil {
 		return nil, 0, err
 	}
-	return data, d.monad.Version, nil
+	return data, d.monad.GetVersion(), nil
 }
 
 // GetStatus implements ipc.MonadProvider.
 func (d *Daemon) GetStatus() (ready bool, docsIndexed int64, state string) {
 	d.stateMu.RLock()
 	defer d.stateMu.RUnlock()
-	return true, d.monad.DocCount, d.state
+	return true, d.monad.GetDocCount(), d.state
 }

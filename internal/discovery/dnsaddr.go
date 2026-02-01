@@ -5,6 +5,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math/rand"
 	"net"
 	"strings"
@@ -41,17 +42,24 @@ type txtResolver interface {
 type DNSADDRResolver struct {
 	timeout  time.Duration
 	resolver txtResolver
+	logger   *slog.Logger
 }
 
 // NewDNSADDRResolver creates a new DNSADDR resolver with the specified timeout.
 // If timeout is 0, a default of 10 seconds is used.
 func NewDNSADDRResolver(timeout time.Duration) *DNSADDRResolver {
+	return NewDNSADDRResolverWithLogger(timeout, slog.Default())
+}
+
+// NewDNSADDRResolverWithLogger creates a new DNSADDR resolver with the specified timeout and logger.
+func NewDNSADDRResolverWithLogger(timeout time.Duration, logger *slog.Logger) *DNSADDRResolver {
 	if timeout == 0 {
 		timeout = defaultTimeout
 	}
 	return &DNSADDRResolver{
 		timeout:  timeout,
 		resolver: net.DefaultResolver,
+		logger:   logger,
 	}
 }
 
@@ -157,7 +165,10 @@ func (r *DNSADDRResolver) ResolveMultiple(ctx context.Context, seeds []string) [
 
 			addrs, err := r.Resolve(ctx, s)
 			if err != nil {
-				// Send empty result on error
+				r.logger.Warn("failed to resolve DNSADDR seed",
+					"seed", s,
+					"error", err,
+				)
 				results <- result{addrs: nil}
 				return
 			}

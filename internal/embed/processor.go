@@ -4,6 +4,7 @@ package embed
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,8 +12,9 @@ import (
 
 // Errors for the processor.
 var (
-	ErrUnsupportedFormat = errors.New("embed: unsupported file format")
-	ErrEmptyFile         = errors.New("embed: file is empty")
+	ErrUnsupportedFormat  = errors.New("embed: unsupported file format")
+	ErrEmptyFile          = errors.New("embed: file is empty")
+	ErrDimensionMismatch  = errors.New("embed: embedding dimension mismatch")
 )
 
 // SupportedExtensions lists processable file types.
@@ -83,28 +85,37 @@ func (p *Processor) ProcessFile(ctx context.Context, path string) ([]float32, er
 	}
 
 	// Average all embeddings into a single vector
-	return averageEmbeddings(embeddings), nil
+	avg, err := averageEmbeddings(embeddings)
+	if err != nil {
+		return nil, err
+	}
+	return avg, nil
 }
 
 // averageEmbeddings computes the element-wise average of multiple embeddings.
 // Returns nil if the input slice is empty.
-func averageEmbeddings(embeddings [][]float32) []float32 {
+// Returns ErrDimensionMismatch if embeddings have inconsistent dimensions.
+func averageEmbeddings(embeddings [][]float32) ([]float32, error) {
 	if len(embeddings) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	if len(embeddings) == 1 {
-		return embeddings[0]
+		return embeddings[0], nil
 	}
 
 	// Get dimension from first embedding
 	dim := len(embeddings[0])
 	result := make([]float32, dim)
 
-	// Sum all embeddings
-	for _, emb := range embeddings {
-		for i, v := range emb {
-			result[i] += v
+	// Validate dimensions and sum all embeddings
+	for i, emb := range embeddings {
+		if len(emb) != dim {
+			return nil, fmt.Errorf("%w: embedding %d has %d dimensions, expected %d",
+				ErrDimensionMismatch, i, len(emb), dim)
+		}
+		for j, v := range emb {
+			result[j] += v
 		}
 	}
 
@@ -114,5 +125,5 @@ func averageEmbeddings(embeddings [][]float32) []float32 {
 		result[i] /= count
 	}
 
-	return result
+	return result, nil
 }

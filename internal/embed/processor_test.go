@@ -277,6 +277,7 @@ func TestAverageEmbeddings(t *testing.T) {
 		name       string
 		embeddings [][]float32
 		expected   []float32
+		wantErr    bool
 	}{
 		{
 			name:       "single embedding",
@@ -305,11 +306,31 @@ func TestAverageEmbeddings(t *testing.T) {
 			embeddings: [][]float32{},
 			expected:   nil,
 		},
+		{
+			name: "dimension mismatch",
+			embeddings: [][]float32{
+				{1.0, 2.0, 3.0},
+				{1.0, 2.0}, // Different dimension
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := averageEmbeddings(tt.embeddings)
+			result, err := averageEmbeddings(tt.embeddings)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Error("Expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
 
 			if tt.expected == nil {
 				if result != nil {

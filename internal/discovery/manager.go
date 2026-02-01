@@ -5,6 +5,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -39,10 +40,16 @@ type ManagerConfig struct {
 type Manager struct {
 	config   ManagerConfig
 	resolver *DNSADDRResolver
+	logger   *slog.Logger
 }
 
 // NewManager creates a new discovery Manager with the given configuration.
 func NewManager(cfg ManagerConfig) *Manager {
+	return NewManagerWithLogger(cfg, slog.Default())
+}
+
+// NewManagerWithLogger creates a new discovery Manager with the given configuration and logger.
+func NewManagerWithLogger(cfg ManagerConfig, logger *slog.Logger) *Manager {
 	timeout := cfg.DNSTimeout
 	if timeout == 0 {
 		timeout = defaultTimeout
@@ -50,7 +57,8 @@ func NewManager(cfg ManagerConfig) *Manager {
 
 	return &Manager{
 		config:   cfg,
-		resolver: NewDNSADDRResolver(timeout),
+		resolver: NewDNSADDRResolverWithLogger(timeout, logger),
+		logger:   logger,
 	}
 }
 
@@ -114,13 +122,21 @@ func (m *Manager) parseBootstrapAddrs(addrs []string) []peer.AddrInfo {
 		// Parse multiaddr string
 		ma, err := multiaddr.NewMultiaddr(addrStr)
 		if err != nil {
-			continue // Skip invalid multiaddrs
+			m.logger.Warn("skipping invalid bootstrap multiaddr",
+				"addr", addrStr,
+				"error", err,
+			)
+			continue
 		}
 
 		// Extract peer info from multiaddr
 		info, err := peer.AddrInfoFromP2pAddr(ma)
 		if err != nil {
-			continue // Skip if no peer ID in multiaddr
+			m.logger.Warn("skipping bootstrap multiaddr without peer ID",
+				"addr", addrStr,
+				"error", err,
+			)
+			continue
 		}
 
 		// Deduplicate by peer ID, merging addresses

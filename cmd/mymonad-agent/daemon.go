@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/internal/agent"
@@ -31,8 +32,18 @@ const (
 	StateError       = "error"
 )
 
-// Default identity passphrase - in production this should be user-provided
-const defaultIdentityPassphrase = "mymonad-agent-identity"
+// identityPassphraseEnvVar is the environment variable for the identity passphrase.
+const identityPassphraseEnvVar = "MYMONAD_IDENTITY_PASSPHRASE"
+
+// getIdentityPassphrase returns the identity passphrase from environment or default.
+// SECURITY: In production, always set MYMONAD_IDENTITY_PASSPHRASE environment variable.
+// Using the default passphrase is insecure as it's hardcoded in the binary.
+func getIdentityPassphrase() string {
+	if passphrase := os.Getenv(identityPassphraseEnvVar); passphrase != "" {
+		return passphrase
+	}
+	return "mymonad-agent-identity-default"
+}
 
 // DaemonConfig holds configuration for the agent daemon.
 type DaemonConfig struct {
@@ -164,7 +175,7 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 func loadOrGenerateIdentity(path string, logger *slog.Logger) (*crypto.Identity, error) {
 	// Try to load existing identity
 	if _, err := os.Stat(path); err == nil {
-		identity, err := crypto.LoadIdentity(path, defaultIdentityPassphrase)
+		identity, err := crypto.LoadIdentity(path, getIdentityPassphrase())
 		if err != nil {
 			logger.Warn("failed to load existing identity, generating new one",
 				"path", path,
@@ -186,7 +197,7 @@ func loadOrGenerateIdentity(path string, logger *slog.Logger) (*crypto.Identity,
 	}
 
 	// Save the new identity
-	if err := crypto.SaveIdentity(identity, path, defaultIdentityPassphrase); err != nil {
+	if err := crypto.SaveIdentity(identity, path, getIdentityPassphrase()); err != nil {
 		return nil, fmt.Errorf("failed to save identity: %w", err)
 	}
 
@@ -259,11 +270,11 @@ func (d *Daemon) Run(ctx context.Context) error {
 // discoverPeers runs peer discovery in the background.
 func (d *Daemon) discoverPeers(ctx context.Context) {
 	d.setState(StateDiscovering)
-	defer d.setState(StateIdle)
 
 	peers := d.discovery.DiscoverPeers(ctx)
 	if len(peers) == 0 {
 		d.logger.Info("no bootstrap peers discovered")
+		d.setState(StateIdle)
 		return
 	}
 
@@ -285,16 +296,33 @@ func (d *Daemon) discoverPeers(ctx context.Context) {
 
 	if connected > 0 {
 		d.setState(StateActive)
+	} else {
+		d.setState(StateIdle)
 	}
 }
+
+// shutdownTimeout is the maximum time to wait for graceful shutdown.
+const shutdownTimeout = 5 * time.Second
 
 // shutdown performs graceful shutdown.
 func (d *Daemon) shutdown() error {
 	var errs []error
 
-	// Stop gRPC server
+	// Stop gRPC server with timeout
 	if d.server != nil {
-		d.server.GracefulStop()
+		done := make(chan struct{})
+		go func() {
+			d.server.GracefulStop()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			d.logger.Info("gRPC server stopped gracefully")
+		case <-time.After(shutdownTimeout):
+			d.logger.Warn("gRPC graceful stop timed out, forcing stop")
+			d.server.Stop()
+		}
 	}
 
 	// Remove socket file
@@ -320,7 +348,7 @@ func (d *Daemon) shutdown() error {
 
 	// Save identity
 	if d.identity != nil && d.cfg.IdentityPath != "" {
-		if err := crypto.SaveIdentity(d.identity, d.cfg.IdentityPath, defaultIdentityPassphrase); err != nil {
+		if err := crypto.SaveIdentity(d.identity, d.cfg.IdentityPath, getIdentityPassphrase()); err != nil {
 			errs = append(errs, fmt.Errorf("failed to save identity: %w", err))
 		}
 	}

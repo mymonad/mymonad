@@ -22,21 +22,33 @@ type Paths struct {
 }
 
 // ExpandPath expands ~ to the user's home directory.
+// Returns the path unchanged if it doesn't start with ~.
+// Panics if home directory cannot be determined when ~ expansion is needed.
 func ExpandPath(path string) string {
 	if path == "~" {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			panic(fmt.Sprintf("failed to get home directory: %v", err))
+		}
 		return home
 	}
 	if strings.HasPrefix(path, "~/") {
-		home, _ := os.UserHomeDir()
+		home, err := os.UserHomeDir()
+		if err != nil {
+			panic(fmt.Sprintf("failed to get home directory: %v", err))
+		}
 		return filepath.Join(home, path[2:])
 	}
 	return path
 }
 
 // DefaultPaths returns the default XDG-compliant paths.
+// Panics if the user's home directory cannot be determined.
 func DefaultPaths() Paths {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get home directory: %v", err))
+	}
 	configDir := filepath.Join(home, ".config", "mymonad")
 	dataDir := filepath.Join(home, ".local", "share", "mymonad")
 

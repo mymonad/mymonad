@@ -150,6 +150,20 @@ func (m *Monad) Dimensions() int {
 	return len(m.Vector)
 }
 
+// GetVersion returns the current version in a thread-safe manner.
+func (m *Monad) GetVersion() int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.Version
+}
+
+// GetDocCount returns the current document count in a thread-safe manner.
+func (m *Monad) GetDocCount() int64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.DocCount
+}
+
 // Binary format header size: version(8) + doccount(8) + updatedat(8) + dims(4) = 28 bytes
 const binaryHeaderSize = 28
 
