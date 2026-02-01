@@ -16,6 +16,7 @@ import (
 	"github.com/mymonad/mymonad/internal/config"
 	"github.com/mymonad/mymonad/internal/crypto"
 	"github.com/mymonad/mymonad/internal/discovery"
+	"github.com/mymonad/mymonad/internal/handshake"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -110,6 +111,10 @@ type Daemon struct {
 	listener  net.Listener
 	logger    *slog.Logger
 
+	// Handshake protocol components
+	handshakeManager *handshake.Manager
+	handshakeHandler *handshake.StreamHandler
+
 	// State tracking
 	state   string
 	stateMu sync.RWMutex
@@ -158,14 +163,27 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 		MDNSEnabled: cfg.MDNSEnabled,
 	})
 
+	// Create handshake manager
+	handshakeMgr := handshake.NewManager(host.Host(), handshake.ManagerConfig{
+		AutoInitiate:     true,
+		CooldownDuration: 1 * time.Hour,
+		Threshold:        float32(cfg.SimilarityThreshold),
+	})
+
+	// Create and register stream handler
+	handshakeHandler := handshake.NewStreamHandler(handshakeMgr, logger)
+	handshakeHandler.Register(host.Host())
+
 	d := &Daemon{
-		cfg:       cfg,
-		identity:  identity,
-		host:      host,
-		dht:       dht,
-		discovery: discMgr,
-		logger:    logger,
-		state:     StateIdle,
+		cfg:              cfg,
+		identity:         identity,
+		host:             host,
+		dht:              dht,
+		discovery:        discMgr,
+		handshakeManager: handshakeMgr,
+		handshakeHandler: handshakeHandler,
+		logger:           logger,
+		state:            StateIdle,
 	}
 
 	return d, nil
@@ -246,6 +264,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	// Discover and connect to bootstrap peers
 	go d.discoverPeers(ctx)
+
+	// Start handshake cleanup loop
+	go d.handshakeManager.CleanupLoop(ctx, 5*time.Minute)
 
 	d.logger.Info("agent daemon running",
 		"peer_id", d.host.ID().String(),
@@ -399,12 +420,13 @@ func (d *Daemon) getState() string {
 // Status implements pb.AgentServiceServer.
 func (d *Daemon) Status(ctx context.Context, req *pb.AgentStatusRequest) (*pb.AgentStatusResponse, error) {
 	connectedPeers := len(d.host.Peers())
+	activeHandshakes := len(d.handshakeManager.ListSessions())
 
 	return &pb.AgentStatusResponse{
 		Ready:            true,
 		PeerId:           d.host.ID().String(),
 		ConnectedPeers:   int32(connectedPeers),
-		ActiveHandshakes: 0, // TODO: implement handshake tracking
+		ActiveHandshakes: int32(activeHandshakes),
 		State:            d.getState(),
 	}, nil
 }
@@ -512,4 +534,156 @@ func formatAddrs(addrs []multiaddr.Multiaddr) []string {
 		result[i] = addr.String()
 	}
 	return result
+}
+
+// StartHandshake implements pb.AgentServiceServer.
+func (d *Daemon) StartHandshake(ctx context.Context, req *pb.StartHandshakeRequest) (*pb.StartHandshakeResponse, error) {
+	// Parse peer ID
+	peerID, err := peer.Decode(req.PeerId)
+	if err != nil {
+		return &pb.StartHandshakeResponse{
+			Error: fmt.Sprintf("invalid peer ID: %v", err),
+		}, nil
+	}
+
+	// Check if peer is connected
+	if d.host.Host().Network().Connectedness(peerID) != network.Connected {
+		return &pb.StartHandshakeResponse{
+			Error: "peer not connected",
+		}, nil
+	}
+
+	// Initiate handshake
+	session, err := d.handshakeHandler.InitiateHandshake(ctx, d.host.Host(), peerID)
+	if err != nil {
+		return &pb.StartHandshakeResponse{
+			Error: err.Error(),
+		}, nil
+	}
+
+	d.logger.Info("started handshake", "session_id", session.ID, "peer", peerID.String())
+
+	return &pb.StartHandshakeResponse{
+		SessionId: session.ID,
+	}, nil
+}
+
+// ListHandshakes implements pb.AgentServiceServer.
+func (d *Daemon) ListHandshakes(ctx context.Context, req *pb.ListHandshakesRequest) (*pb.ListHandshakesResponse, error) {
+	sessions := d.handshakeManager.ListSessions()
+	handshakes := make([]*pb.HandshakeInfo, 0, len(sessions))
+
+	for _, s := range sessions {
+		handshakes = append(handshakes, sessionToHandshakeInfo(s))
+	}
+
+	return &pb.ListHandshakesResponse{
+		Handshakes: handshakes,
+	}, nil
+}
+
+// GetHandshake implements pb.AgentServiceServer.
+func (d *Daemon) GetHandshake(ctx context.Context, req *pb.GetHandshakeRequest) (*pb.GetHandshakeResponse, error) {
+	session := d.handshakeManager.GetSession(req.SessionId)
+	if session == nil {
+		return &pb.GetHandshakeResponse{
+			Error: "session not found",
+		}, nil
+	}
+
+	return &pb.GetHandshakeResponse{
+		Handshake: sessionToHandshakeInfo(session),
+	}, nil
+}
+
+// ApproveHandshake implements pb.AgentServiceServer.
+func (d *Daemon) ApproveHandshake(ctx context.Context, req *pb.ApproveHandshakeRequest) (*pb.ApproveHandshakeResponse, error) {
+	session := d.handshakeManager.GetSession(req.SessionId)
+	if session == nil {
+		return &pb.ApproveHandshakeResponse{
+			Success: false,
+			Error:   "session not found",
+		}, nil
+	}
+
+	if !session.PendingApproval {
+		return &pb.ApproveHandshakeResponse{
+			Success: false,
+			Error:   "session is not pending approval",
+		}, nil
+	}
+
+	// Clear pending approval state
+	session.ClearPendingApproval()
+
+	d.logger.Info("approved handshake", "session_id", session.ID)
+
+	// TODO: Continue protocol based on approval type (unmask, etc.)
+	// This will be implemented in Tasks 12-15
+
+	return &pb.ApproveHandshakeResponse{
+		Success: true,
+	}, nil
+}
+
+// RejectHandshake implements pb.AgentServiceServer.
+func (d *Daemon) RejectHandshake(ctx context.Context, req *pb.RejectHandshakeRequest) (*pb.RejectHandshakeResponse, error) {
+	session := d.handshakeManager.GetSession(req.SessionId)
+	if session == nil {
+		return &pb.RejectHandshakeResponse{
+			Success: false,
+			Error:   "session not found",
+		}, nil
+	}
+
+	d.logger.Info("rejected handshake", "session_id", session.ID, "reason", req.Reason)
+
+	// Remove the session
+	d.handshakeManager.RemoveSession(session.ID)
+
+	return &pb.RejectHandshakeResponse{
+		Success: true,
+	}, nil
+}
+
+// WatchHandshakes implements pb.AgentServiceServer.
+func (d *Daemon) WatchHandshakes(req *pb.WatchHandshakesRequest, stream grpc.ServerStreamingServer[pb.HandshakeEvent]) error {
+	// Subscribe to handshake events
+	events := d.handshakeManager.Subscribe()
+
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case event, ok := <-events:
+			if !ok {
+				return nil
+			}
+
+			pbEvent := &pb.HandshakeEvent{
+				SessionId:      event.SessionID,
+				EventType:      event.EventType,
+				State:          event.State,
+				PeerId:         event.PeerID,
+				ElapsedSeconds: event.ElapsedSeconds,
+			}
+
+			if err := stream.Send(pbEvent); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+// sessionToHandshakeInfo converts a session to a HandshakeInfo proto message.
+func sessionToHandshakeInfo(s *handshake.Session) *pb.HandshakeInfo {
+	return &pb.HandshakeInfo{
+		SessionId:           s.ID,
+		PeerId:              s.PeerID.String(),
+		State:               s.State().String(),
+		Role:                s.Role.String(),
+		ElapsedSeconds:      s.ElapsedSeconds(),
+		PendingApproval:     s.PendingApproval,
+		PendingApprovalType: s.PendingApprovalType,
+	}
 }
