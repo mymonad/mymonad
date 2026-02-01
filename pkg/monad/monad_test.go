@@ -288,3 +288,228 @@ func TestMonadDimensions(t *testing.T) {
 		t.Errorf("Dimensions() should return %d, got %d", dims, m.Dimensions())
 	}
 }
+
+func TestMonad_MarshalUnmarshal(t *testing.T) {
+	m := New(384)
+	if err := m.Update(make([]float32, 384)); err != nil {
+		t.Fatalf("First update failed: %v", err)
+	}
+	if err := m.Update(make([]float32, 384)); err != nil {
+		t.Fatalf("Second update failed: %v", err)
+	}
+
+	data, err := m.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	m2 := &Monad{}
+	if err := m2.UnmarshalBinary(data); err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	// Verify version matches
+	if m2.Version != m.Version {
+		t.Errorf("Version mismatch: got %d, want %d", m2.Version, m.Version)
+	}
+
+	// Verify doccount matches
+	if m2.DocCount != m.DocCount {
+		t.Errorf("DocCount mismatch: got %d, want %d", m2.DocCount, m.DocCount)
+	}
+
+	// Verify vector length matches
+	if len(m2.Vector) != len(m.Vector) {
+		t.Errorf("Vector length mismatch: got %d, want %d", len(m2.Vector), len(m.Vector))
+	}
+
+	// Verify UpdatedAt matches (within nanosecond precision via UnixNano)
+	if !m2.UpdatedAt.Equal(m.UpdatedAt) {
+		t.Errorf("UpdatedAt mismatch: got %v, want %v", m2.UpdatedAt, m.UpdatedAt)
+	}
+
+	// Verify vector values match
+	for i := range m.Vector {
+		if m2.Vector[i] != m.Vector[i] {
+			t.Errorf("Vector[%d] mismatch: got %f, want %f", i, m2.Vector[i], m.Vector[i])
+		}
+	}
+}
+
+func TestMonad_MarshalBinaryFormat(t *testing.T) {
+	m := New(3)
+	m.Vector = []float32{1.0, 2.0, 3.0}
+	m.Version = 42
+	m.DocCount = 10
+
+	data, err := m.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	// Expected format: version(8) + doccount(8) + updatedat(8) + dims(4) + vector(dims*4)
+	// = 8 + 8 + 8 + 4 + 3*4 = 40 bytes
+	expectedLen := 8 + 8 + 8 + 4 + 3*4
+	if len(data) != expectedLen {
+		t.Errorf("Binary data length: got %d, want %d", len(data), expectedLen)
+	}
+}
+
+func TestMonad_UnmarshalBinaryInvalidData(t *testing.T) {
+	m := &Monad{}
+
+	// Test with empty data
+	err := m.UnmarshalBinary([]byte{})
+	if err == nil {
+		t.Error("UnmarshalBinary should fail with empty data")
+	}
+
+	// Test with too short data (missing header)
+	err = m.UnmarshalBinary(make([]byte, 10))
+	if err == nil {
+		t.Error("UnmarshalBinary should fail with incomplete header")
+	}
+
+	// Test with header but missing vector data
+	// Header is 28 bytes, but claims to have 100 dimensions
+	shortData := make([]byte, 28)
+	// Set dimensions to 100 at offset 24
+	shortData[24] = 100
+	shortData[25] = 0
+	shortData[26] = 0
+	shortData[27] = 0
+	err = m.UnmarshalBinary(shortData)
+	if err == nil {
+		t.Error("UnmarshalBinary should fail with missing vector data")
+	}
+}
+
+func TestMonad_MarshalUnmarshalWithNonZeroVector(t *testing.T) {
+	m := New(5)
+	m.Vector = []float32{0.1, 0.2, 0.3, 0.4, 0.5}
+	m.Version = 123
+	m.DocCount = 456
+
+	data, err := m.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	m2 := &Monad{}
+	if err := m2.UnmarshalBinary(data); err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	// Verify all vector values
+	for i, expected := range []float32{0.1, 0.2, 0.3, 0.4, 0.5} {
+		if m2.Vector[i] != expected {
+			t.Errorf("Vector[%d] mismatch: got %f, want %f", i, m2.Vector[i], expected)
+		}
+	}
+}
+
+func TestMonad_SaveLoadFile(t *testing.T) {
+	// Create a temp directory for test files
+	tmpDir := t.TempDir()
+	filePath := tmpDir + "/test_monad.bin"
+
+	m := New(384)
+	if err := m.Update(make([]float32, 384)); err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	m.Vector[0] = 1.5
+	m.Vector[100] = 2.5
+	m.Vector[383] = 3.5
+
+	// Save to file
+	if err := SaveToFile(m, filePath); err != nil {
+		t.Fatalf("SaveToFile failed: %v", err)
+	}
+
+	// Load from file
+	loaded, err := LoadFromFile(filePath)
+	if err != nil {
+		t.Fatalf("LoadFromFile failed: %v", err)
+	}
+
+	// Verify data
+	if loaded.Version != m.Version {
+		t.Errorf("Version mismatch: got %d, want %d", loaded.Version, m.Version)
+	}
+	if loaded.DocCount != m.DocCount {
+		t.Errorf("DocCount mismatch: got %d, want %d", loaded.DocCount, m.DocCount)
+	}
+	if len(loaded.Vector) != len(m.Vector) {
+		t.Errorf("Vector length mismatch: got %d, want %d", len(loaded.Vector), len(m.Vector))
+	}
+	if loaded.Vector[0] != 1.5 {
+		t.Errorf("Vector[0] mismatch: got %f, want 1.5", loaded.Vector[0])
+	}
+	if loaded.Vector[100] != 2.5 {
+		t.Errorf("Vector[100] mismatch: got %f, want 2.5", loaded.Vector[100])
+	}
+	if loaded.Vector[383] != 3.5 {
+		t.Errorf("Vector[383] mismatch: got %f, want 3.5", loaded.Vector[383])
+	}
+}
+
+func TestMonad_LoadFromFileNotFound(t *testing.T) {
+	_, err := LoadFromFile("/nonexistent/path/monad.bin")
+	if err == nil {
+		t.Error("LoadFromFile should fail for non-existent file")
+	}
+}
+
+func TestMonad_SaveToFileAtomicity(t *testing.T) {
+	tmpDir := t.TempDir()
+	filePath := tmpDir + "/atomic_test.bin"
+
+	m := New(10)
+	m.Vector[0] = 42.0
+
+	// Save the file
+	if err := SaveToFile(m, filePath); err != nil {
+		t.Fatalf("SaveToFile failed: %v", err)
+	}
+
+	// Verify file exists and is valid
+	loaded, err := LoadFromFile(filePath)
+	if err != nil {
+		t.Fatalf("LoadFromFile failed: %v", err)
+	}
+
+	if loaded.Vector[0] != 42.0 {
+		t.Errorf("Vector[0] mismatch: got %f, want 42.0", loaded.Vector[0])
+	}
+}
+
+func TestMonad_MarshalUnmarshalLargeVector(t *testing.T) {
+	// Test with a larger vector to ensure no buffer issues
+	dims := 1536 // Common large embedding size
+	m := New(dims)
+	for i := range m.Vector {
+		m.Vector[i] = float32(i) / float32(dims)
+	}
+	m.Version = 999
+	m.DocCount = 1000
+
+	data, err := m.MarshalBinary()
+	if err != nil {
+		t.Fatalf("MarshalBinary failed: %v", err)
+	}
+
+	m2 := &Monad{}
+	if err := m2.UnmarshalBinary(data); err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+
+	if len(m2.Vector) != dims {
+		t.Errorf("Vector length mismatch: got %d, want %d", len(m2.Vector), dims)
+	}
+
+	for i := range m.Vector {
+		if m2.Vector[i] != m.Vector[i] {
+			t.Errorf("Vector[%d] mismatch: got %f, want %f", i, m2.Vector[i], m.Vector[i])
+		}
+	}
+}
