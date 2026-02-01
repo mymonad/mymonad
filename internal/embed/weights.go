@@ -39,15 +39,25 @@ func GetWeightWithRules(path string, rules []SourceWeight) float32 {
 
 	for _, rule := range rules {
 		// Check if pattern matches filename or path
-		if matched, _ := filepath.Match(rule.Pattern, filename); matched {
+		matched, err := filepath.Match(rule.Pattern, filename)
+		if err != nil {
+			continue // Invalid pattern, try next rule
+		}
+		if matched {
 			return rule.Multiplier
 		}
 		// Also check against full path for directory patterns
 		if strings.Contains(rule.Pattern, "/") {
-			if matched, _ := filepath.Match(rule.Pattern, path); matched {
+			matched, err := filepath.Match(rule.Pattern, path)
+			if err != nil {
+				continue // Invalid pattern, try next rule
+			}
+			if matched {
 				return rule.Multiplier
 			}
-			// Check if pattern substring exists in path
+			// Substring matching is intentional for directory patterns like "*/diary/*"
+			// since filepath.Match requires exact structural matches. This allows
+			// patterns to match paths regardless of depth (e.g., "/a/b/diary/c" matches "*/diary/*").
 			patternPart := strings.Trim(rule.Pattern, "*")
 			if strings.Contains(path, patternPart) {
 				return rule.Multiplier
