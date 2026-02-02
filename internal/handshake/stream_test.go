@@ -1396,3 +1396,753 @@ func serializeFloat32Slice(values []float32) []byte {
 	}
 	return buf
 }
+
+// ===========================================================================
+// Deal Breakers Tests
+// ===========================================================================
+
+func TestDealBreakers_Compatible(t *testing.T) {
+	// Create mock streams for communication
+	initiatorStream, responderStream := newMockStreamPair()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+
+	// Create managers and handlers for both sides
+	initiatorManager := NewManager(nil, cfg)
+	responderManager := NewManager(nil, cfg)
+	initiatorHandler := NewStreamHandler(initiatorManager, logger)
+	responderHandler := NewStreamHandler(responderManager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create sessions and transition to DealBreakers state
+	initiatorSession := initiatorManager.CreateSession(testPeerID, protocol.RoleInitiator)
+	responderSession := responderManager.CreateSession(testPeerID, protocol.RoleResponder)
+
+	// Start state machines and transition to DealBreakers
+	initiatorSession.Handshake.Transition(protocol.EventInitiate)
+	initiatorSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	initiatorSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+	responderSession.Handshake.Transition(protocol.EventInitiate)
+	responderSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	responderSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set up compatible deal-breaker configs
+	// Both peers answer "yes" to smoking being a dealbreaker
+	initiatorSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+			{ID: "pets", Question: "Do you like pets?", MyAnswer: true, Required: false},
+		},
+	}
+	responderSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+			{ID: "travel", Question: "Do you enjoy travel?", MyAnswer: true, Required: false},
+		},
+	}
+
+	// Assign streams
+	initiatorSession.Stream = initiatorStream
+	responderSession.Stream = responderStream
+
+	var wg sync.WaitGroup
+	var initiatorErr, responderErr error
+
+	// Run responder in background (it needs to read first)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		responderErr = responderHandler.doDealBreakersResponder(responderSession)
+	}()
+
+	// Run initiator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		initiatorErr = initiatorHandler.doDealBreakersInitiator(initiatorSession)
+	}()
+
+	wg.Wait()
+
+	if initiatorErr != nil {
+		t.Errorf("initiator deal breakers failed: %v", initiatorErr)
+	}
+	if responderErr != nil {
+		t.Errorf("responder deal breakers failed: %v", responderErr)
+	}
+}
+
+func TestDealBreakers_Incompatible(t *testing.T) {
+	// Create mock streams for communication
+	initiatorStream, responderStream := newMockStreamPair()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+
+	// Create managers and handlers for both sides
+	initiatorManager := NewManager(nil, cfg)
+	responderManager := NewManager(nil, cfg)
+	initiatorHandler := NewStreamHandler(initiatorManager, logger)
+	responderHandler := NewStreamHandler(responderManager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create sessions and transition to DealBreakers state
+	initiatorSession := initiatorManager.CreateSession(testPeerID, protocol.RoleInitiator)
+	responderSession := responderManager.CreateSession(testPeerID, protocol.RoleResponder)
+
+	// Start state machines and transition to DealBreakers
+	initiatorSession.Handshake.Transition(protocol.EventInitiate)
+	initiatorSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	initiatorSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+	responderSession.Handshake.Transition(protocol.EventInitiate)
+	responderSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	responderSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set up INCOMPATIBLE deal-breaker configs
+	// Initiator requires non-smoker, but responder smokes
+	initiatorSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+		},
+	}
+	responderSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: true, Required: true}, // Mismatch!
+		},
+	}
+
+	// Assign streams
+	initiatorSession.Stream = initiatorStream
+	responderSession.Stream = responderStream
+
+	var wg sync.WaitGroup
+	var initiatorErr, responderErr error
+
+	// Run responder in background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		responderErr = responderHandler.doDealBreakersResponder(responderSession)
+	}()
+
+	// Run initiator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		initiatorErr = initiatorHandler.doDealBreakersInitiator(initiatorSession)
+	}()
+
+	wg.Wait()
+
+	// At least one side should report incompatibility
+	if initiatorErr == nil && responderErr == nil {
+		t.Error("expected at least one side to report incompatibility")
+	}
+
+	// Check that errors indicate deal breaker failure
+	if initiatorErr != nil && initiatorErr.Error() != "deal breakers failed: incompatible" {
+		t.Logf("initiator error (expected): %v", initiatorErr)
+	}
+	if responderErr != nil && responderErr.Error() != "deal breakers failed: incompatible" {
+		t.Logf("responder error (expected): %v", responderErr)
+	}
+}
+
+func TestDealBreakers_EmptyQuestions(t *testing.T) {
+	// Create mock streams for communication
+	initiatorStream, responderStream := newMockStreamPair()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+
+	// Create managers and handlers for both sides
+	initiatorManager := NewManager(nil, cfg)
+	responderManager := NewManager(nil, cfg)
+	initiatorHandler := NewStreamHandler(initiatorManager, logger)
+	responderHandler := NewStreamHandler(responderManager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create sessions and transition to DealBreakers state
+	initiatorSession := initiatorManager.CreateSession(testPeerID, protocol.RoleInitiator)
+	responderSession := responderManager.CreateSession(testPeerID, protocol.RoleResponder)
+
+	// Start state machines and transition to DealBreakers
+	initiatorSession.Handshake.Transition(protocol.EventInitiate)
+	initiatorSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	initiatorSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+	responderSession.Handshake.Transition(protocol.EventInitiate)
+	responderSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	responderSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set up EMPTY deal-breaker configs (no questions = always compatible)
+	initiatorSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{},
+	}
+	responderSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{},
+	}
+
+	// Assign streams
+	initiatorSession.Stream = initiatorStream
+	responderSession.Stream = responderStream
+
+	var wg sync.WaitGroup
+	var initiatorErr, responderErr error
+
+	// Run responder in background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		responderErr = responderHandler.doDealBreakersResponder(responderSession)
+	}()
+
+	// Run initiator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		initiatorErr = initiatorHandler.doDealBreakersInitiator(initiatorSession)
+	}()
+
+	wg.Wait()
+
+	// Empty questions should pass (vacuously compatible)
+	if initiatorErr != nil {
+		t.Errorf("initiator deal breakers failed with empty questions: %v", initiatorErr)
+	}
+	if responderErr != nil {
+		t.Errorf("responder deal breakers failed with empty questions: %v", responderErr)
+	}
+}
+
+func TestDealBreakers_StateTransitions(t *testing.T) {
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	t.Run("success transitions to HumanChat", func(t *testing.T) {
+		h := protocol.NewHandshake(protocol.RoleInitiator, testPeerID, 0.7)
+
+		// Start in Idle -> Attestation -> VectorMatch -> DealBreakers
+		h.Transition(protocol.EventInitiate)
+		h.Transition(protocol.EventAttestationSuccess)
+		h.Transition(protocol.EventMatchAboveThreshold)
+
+		if h.State() != protocol.StateDealBreakers {
+			t.Errorf("expected StateDealBreakers, got %v", h.State())
+		}
+
+		// Success -> HumanChat
+		if err := h.Transition(protocol.EventDealBreakersMatch); err != nil {
+			t.Fatalf("failed to transition to human chat: %v", err)
+		}
+		if h.State() != protocol.StateHumanChat {
+			t.Errorf("expected StateHumanChat, got %v", h.State())
+		}
+	})
+
+	t.Run("failure transitions to Failed", func(t *testing.T) {
+		h := protocol.NewHandshake(protocol.RoleInitiator, testPeerID, 0.7)
+
+		// Start in Idle -> Attestation -> VectorMatch -> DealBreakers
+		h.Transition(protocol.EventInitiate)
+		h.Transition(protocol.EventAttestationSuccess)
+		h.Transition(protocol.EventMatchAboveThreshold)
+
+		// Failure -> Failed
+		if err := h.Transition(protocol.EventDealBreakersMismatch); err != nil {
+			t.Fatalf("failed to transition to failed: %v", err)
+		}
+		if h.State() != protocol.StateFailed {
+			t.Errorf("expected StateFailed, got %v", h.State())
+		}
+	})
+}
+
+func TestDealBreakerInitiator_SendsValidRequest(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create a buffer to capture what initiator writes
+	var buf bytes.Buffer
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+	session.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set up deal-breaker config
+	session.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+		},
+	}
+
+	// Use a pipe for reading (will close causing error) and buffer for writing
+	r, w := io.Pipe()
+	go func() {
+		// Let initiator write the request
+		time.Sleep(50 * time.Millisecond)
+		w.Close() // This will cause the read to fail, ending the test
+	}()
+
+	session.Stream = &mockStream{reader: r, writer: &buf}
+
+	// This will fail on read (as expected), but the request should be written
+	_ = handler.doDealBreakersInitiator(session)
+
+	// Verify the request was written
+	if buf.Len() == 0 {
+		t.Fatal("no data written by initiator")
+	}
+
+	// Parse the written envelope
+	env, err := ReadEnvelope(&buf)
+	if err != nil {
+		t.Fatalf("failed to read envelope: %v", err)
+	}
+
+	if env.Type != pb.MessageType_DEALBREAKER_REQUEST {
+		t.Errorf("expected DEALBREAKER_REQUEST, got %v", env.Type)
+	}
+
+	var payload pb.DealBreakerRequestPayload
+	if err := googleproto.Unmarshal(env.Payload, &payload); err != nil {
+		t.Fatalf("failed to unmarshal payload: %v", err)
+	}
+
+	if len(payload.Questions) != 1 {
+		t.Errorf("expected 1 question, got %d", len(payload.Questions))
+	}
+
+	if payload.Questions[0].Id != "smoking" {
+		t.Errorf("expected question ID 'smoking', got %s", payload.Questions[0].Id)
+	}
+
+	if payload.Questions[0].Answer != false {
+		t.Error("expected answer to be false")
+	}
+}
+
+func TestDealBreakerResponder_RejectsWrongMessageType(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create a message with wrong type
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_VECTOR_MATCH_REQUEST, // Wrong type
+		Payload:   []byte("test"),
+		Timestamp: time.Now().Unix(),
+	}
+
+	session := manager.CreateSession(testPeerID, protocol.RoleResponder)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+	session.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set deal-breaker config
+	session.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{},
+	}
+
+	r, w := io.Pipe()
+	outputBuf := &bytes.Buffer{}
+	go func() {
+		WriteEnvelope(w, env)
+		w.Close()
+	}()
+
+	session.Stream = &mockStream{reader: r, writer: outputBuf}
+
+	err := handler.doDealBreakersResponder(session)
+	if err == nil {
+		t.Fatal("expected error for wrong message type")
+	}
+
+	if err.Error() != "unexpected message type: VECTOR_MATCH_REQUEST" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestDealBreakerInitiator_HandlesReject(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+	session.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set deal-breaker config
+	session.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+		},
+	}
+
+	// Create a REJECT response
+	rejectPayload := &pb.RejectPayload{
+		Reason: "deal breaker incompatible",
+		Stage:  "deal_breakers",
+	}
+	rejectPayloadBytes, _ := googleproto.Marshal(rejectPayload)
+
+	rejectEnv := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_REJECT,
+		Payload:   rejectPayloadBytes,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Create pipes for communication
+	inputR, inputW := io.Pipe()
+
+	go func() {
+		// Read and discard the request from initiator
+		ReadEnvelope(inputR)
+	}()
+
+	// Create a reader that will provide the reject message
+	respBuf := &bytes.Buffer{}
+	WriteEnvelope(respBuf, rejectEnv)
+
+	session.Stream = &mockStream{
+		reader: respBuf,
+		writer: inputW,
+	}
+
+	err := handler.doDealBreakersInitiator(session)
+	if err == nil {
+		t.Fatal("expected error for rejection")
+	}
+
+	if err.Error() != "peer rejected: deal breaker incompatible" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestCheckCompatibility(t *testing.T) {
+	tests := []struct {
+		name         string
+		ourQuestions []DealBreakerQuestion
+		peerAnswers  map[string]bool
+		expected     bool
+	}{
+		{
+			name:         "empty questions is compatible",
+			ourQuestions: []DealBreakerQuestion{},
+			peerAnswers:  map[string]bool{},
+			expected:     true,
+		},
+		{
+			name: "required question matches",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "smoking", MyAnswer: false, Required: true},
+			},
+			peerAnswers: map[string]bool{"smoking": false},
+			expected:    true,
+		},
+		{
+			name: "required question mismatches",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "smoking", MyAnswer: false, Required: true},
+			},
+			peerAnswers: map[string]bool{"smoking": true},
+			expected:    false,
+		},
+		{
+			name: "non-required question mismatch is ok",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "pets", MyAnswer: true, Required: false},
+			},
+			peerAnswers: map[string]bool{"pets": false},
+			expected:    true,
+		},
+		{
+			name: "missing answer for required question fails",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "smoking", MyAnswer: false, Required: true},
+			},
+			peerAnswers: map[string]bool{}, // No answer provided
+			expected:    false,
+		},
+		{
+			name: "missing answer for non-required question passes",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "pets", MyAnswer: true, Required: false},
+			},
+			peerAnswers: map[string]bool{}, // No answer provided
+			expected:    true,
+		},
+		{
+			name: "multiple questions - all pass",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "smoking", MyAnswer: false, Required: true},
+				{ID: "pets", MyAnswer: true, Required: true},
+			},
+			peerAnswers: map[string]bool{"smoking": false, "pets": true},
+			expected:    true,
+		},
+		{
+			name: "multiple questions - one fails",
+			ourQuestions: []DealBreakerQuestion{
+				{ID: "smoking", MyAnswer: false, Required: true},
+				{ID: "pets", MyAnswer: true, Required: true},
+			},
+			peerAnswers: map[string]bool{"smoking": false, "pets": false}, // pets mismatch
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := checkCompatibility(tt.ourQuestions, tt.peerAnswers)
+			if result != tt.expected {
+				t.Errorf("checkCompatibility() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDealBreakerInitiator_RejectsWrongMessageType(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+	session.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Set deal-breaker config
+	session.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+		},
+	}
+
+	// Create a wrong message type (request instead of response)
+	wrongEnv := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_DEALBREAKER_REQUEST, // Wrong type for initiator
+		Payload:   []byte("test"),
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Create pipes for communication
+	inputR, inputW := io.Pipe()
+
+	go func() {
+		// Read and discard the request from initiator
+		ReadEnvelope(inputR)
+	}()
+
+	// Create a reader that will provide the wrong message type
+	respBuf := &bytes.Buffer{}
+	WriteEnvelope(respBuf, wrongEnv)
+
+	session.Stream = &mockStream{
+		reader: respBuf,
+		writer: inputW,
+	}
+
+	err := handler.doDealBreakersInitiator(session)
+	if err == nil {
+		t.Fatal("expected error for wrong message type")
+	}
+
+	if err.Error() != "unexpected message type: DEALBREAKER_REQUEST" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestDealBreakerResponder_NilConfig(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleResponder)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+	session.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Do NOT set DealBreakerConfig (leave nil)
+	session.DealBreakerConfig = nil
+
+	var buf bytes.Buffer
+	session.Stream = &mockStream{reader: &buf, writer: &buf}
+
+	err := handler.doDealBreakersResponder(session)
+	if err == nil {
+		t.Fatal("expected error for nil deal breaker config")
+	}
+
+	if err.Error() != "deal breaker config not set" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestDealBreakers_InitiatorIncompatibleWithPeerAnswers(t *testing.T) {
+	// Test case where responder marks us compatible, but we find them incompatible
+	// Create mock streams for communication
+	initiatorStream, responderStream := newMockStreamPair()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+
+	// Create managers and handlers for both sides
+	initiatorManager := NewManager(nil, cfg)
+	responderManager := NewManager(nil, cfg)
+	initiatorHandler := NewStreamHandler(initiatorManager, logger)
+	responderHandler := NewStreamHandler(responderManager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	// Create sessions and transition to DealBreakers state
+	initiatorSession := initiatorManager.CreateSession(testPeerID, protocol.RoleInitiator)
+	responderSession := responderManager.CreateSession(testPeerID, protocol.RoleResponder)
+
+	// Start state machines and transition to DealBreakers
+	initiatorSession.Handshake.Transition(protocol.EventInitiate)
+	initiatorSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	initiatorSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+	responderSession.Handshake.Transition(protocol.EventInitiate)
+	responderSession.Handshake.Transition(protocol.EventAttestationSuccess)
+	responderSession.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Initiator requires non-smoker
+	// Responder has no requirements (so marks initiator compatible)
+	// BUT responder smokes, so initiator should reject
+	initiatorSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: false, Required: true},
+		},
+	}
+	responderSession.DealBreakerConfig = &DealBreakerConfig{
+		Questions: []DealBreakerQuestion{
+			{ID: "smoking", Question: "Do you smoke?", MyAnswer: true, Required: false}, // Smokes, but doesn't require match
+		},
+	}
+
+	// Assign streams
+	initiatorSession.Stream = initiatorStream
+	responderSession.Stream = responderStream
+
+	var wg sync.WaitGroup
+	var initiatorErr, responderErr error
+
+	// Run responder in background
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		responderErr = responderHandler.doDealBreakersResponder(responderSession)
+	}()
+
+	// Run initiator
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		initiatorErr = initiatorHandler.doDealBreakersInitiator(initiatorSession)
+	}()
+
+	wg.Wait()
+
+	// Responder should succeed (they have no requirements)
+	if responderErr != nil {
+		t.Errorf("responder should not error: %v", responderErr)
+	}
+
+	// Initiator should fail because responder smokes and we require non-smoker
+	if initiatorErr == nil {
+		t.Error("expected initiator to fail due to incompatibility")
+	}
+	if initiatorErr != nil && initiatorErr.Error() != "deal breakers failed: incompatible" {
+		t.Errorf("unexpected error: %v", initiatorErr)
+	}
+}
+
+func TestDealBreakerConfig_NilConfig(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	cfg := ManagerConfig{
+		AutoInitiate:     false,
+		CooldownDuration: 10 * time.Minute,
+		Threshold:        0.7,
+	}
+	manager := NewManager(nil, cfg)
+	handler := NewStreamHandler(manager, logger)
+
+	testPeerID, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+
+	session := manager.CreateSession(testPeerID, protocol.RoleInitiator)
+	session.Handshake.Transition(protocol.EventInitiate)
+	session.Handshake.Transition(protocol.EventAttestationSuccess)
+	session.Handshake.Transition(protocol.EventMatchAboveThreshold)
+
+	// Do NOT set DealBreakerConfig (leave nil)
+	session.DealBreakerConfig = nil
+
+	var buf bytes.Buffer
+	session.Stream = &mockStream{reader: &buf, writer: &buf}
+
+	err := handler.doDealBreakersInitiator(session)
+	if err == nil {
+		t.Fatal("expected error for nil deal breaker config")
+	}
+
+	if err.Error() != "deal breaker config not set" {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

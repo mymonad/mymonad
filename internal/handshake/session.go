@@ -8,8 +8,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/pkg/protocol"
 )
+
+// DealBreakerConfig holds deal-breaker questions and their required answers.
+type DealBreakerConfig struct {
+	Questions []DealBreakerQuestion
+}
+
+// DealBreakerQuestion represents a single deal-breaker question.
+type DealBreakerQuestion struct {
+	ID       string // Unique identifier for the question
+	Question string // The question text
+	MyAnswer bool   // What I answer to this question
+	Required bool   // If true, peer must also answer this way
+}
 
 // Session represents an active handshake with a peer.
 type Session struct {
@@ -27,10 +41,20 @@ type Session struct {
 	LocalMonad []byte
 	PeerMonad  []byte
 
+	// Deal breaker configuration
+	DealBreakerConfig *DealBreakerConfig
+
 	// Approval state
 	PendingApproval     bool
 	PendingApprovalType string
 	PendingAt           time.Time
+
+	// Identity for unmask stage
+	IdentityPayload *pb.IdentityPayload // Our identity to reveal
+	PeerIdentity    *pb.IdentityPayload // Peer's revealed identity
+
+	// Approval channel for async human approval
+	approvalCh chan bool
 }
 
 // NewSession creates a new handshake session.
@@ -43,6 +67,7 @@ func NewSession(peerID peer.ID, role protocol.Role, threshold float32) *Session 
 		Handshake:    protocol.NewHandshake(role, peerID, threshold),
 		StartedAt:    now,
 		LastActivity: now,
+		approvalCh:   make(chan bool, 1),
 	}
 }
 
@@ -106,4 +131,20 @@ func (s *Session) UpdateActivity() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.LastActivity = time.Now()
+}
+
+// WaitForApproval blocks until human approval or rejection is signaled.
+// Returns true if approved, false if rejected.
+func (s *Session) WaitForApproval() bool {
+	return <-s.approvalCh
+}
+
+// SignalApproval signals approval (true) or rejection (false) to unblock WaitForApproval.
+// This is non-blocking; if the channel is full, the signal is dropped.
+func (s *Session) SignalApproval(approved bool) {
+	select {
+	case s.approvalCh <- approved:
+	default:
+		// Channel full, signal already pending
+	}
 }

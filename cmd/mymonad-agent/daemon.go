@@ -613,13 +613,20 @@ func (d *Daemon) ApproveHandshake(ctx context.Context, req *pb.ApproveHandshakeR
 		}, nil
 	}
 
-	// Clear pending approval state
-	session.ClearPendingApproval()
+	// For unmask approval, set the identity payload
+	if session.PendingApprovalType == "unmask" {
+		session.IdentityPayload = &pb.IdentityPayload{
+			DisplayName:  req.DisplayName,
+			Email:        req.Email,
+			SignalNumber: req.SignalNumber,
+			MatrixId:     req.MatrixId,
+		}
+	}
 
-	d.logger.Info("approved handshake", "session_id", session.ID)
+	// Signal approval to unblock the waiting protocol handler
+	session.SignalApproval(true)
 
-	// TODO: Continue protocol based on approval type (unmask, etc.)
-	// This will be implemented in Tasks 12-15
+	d.logger.Info("approved handshake", "session_id", session.ID, "approval_type", session.PendingApprovalType)
 
 	return &pb.ApproveHandshakeResponse{
 		Success: true,
@@ -638,8 +645,13 @@ func (d *Daemon) RejectHandshake(ctx context.Context, req *pb.RejectHandshakeReq
 
 	d.logger.Info("rejected handshake", "session_id", session.ID, "reason", req.Reason)
 
-	// Remove the session
-	d.handshakeManager.RemoveSession(session.ID)
+	// If session is pending approval, signal rejection
+	if session.PendingApproval {
+		session.SignalApproval(false)
+	} else {
+		// If not pending, just remove the session
+		d.handshakeManager.RemoveSession(session.ID)
+	}
 
 	return &pb.RejectHandshakeResponse{
 		Success: true,

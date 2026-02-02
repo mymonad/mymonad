@@ -161,7 +161,50 @@ func (h *StreamHandler) runInitiator(session *Session) {
 	h.emitStateChange(session)
 	h.logger.Info("initiator vector match complete", "session", session.ID)
 
-	// TODO: Continue to deal breakers in Task 14
+	// Stage 3: Deal Breakers
+	if err := h.doDealBreakersInitiator(session); err != nil {
+		h.logger.Error("deal breakers failed", "error", err)
+		session.Handshake.Transition(proto.EventDealBreakersMismatch)
+		h.manager.EmitEvent(Event{
+			SessionID: session.ID,
+			EventType: "failed",
+			State:     session.State().String(),
+			PeerID:    session.PeerID.String(),
+		})
+		return
+	}
+	session.Handshake.Transition(proto.EventDealBreakersMatch)
+	h.emitStateChange(session)
+	h.logger.Info("initiator deal breakers complete", "session", session.ID)
+
+	// Skip HumanChat (synthetic chat) for now - go directly to Unmask
+	// In production, there would be an EventChatApproval transition here after chat
+	session.Handshake.Transition(proto.EventChatApproval) // Skip to Unmask state
+	h.emitStateChange(session)
+
+	// Stage 5: Unmask
+	if err := h.doUnmaskInitiator(session); err != nil {
+		h.logger.Error("unmask failed", "error", err)
+		session.Handshake.Transition(proto.EventUnmaskRejection)
+		h.manager.EmitEvent(Event{
+			SessionID: session.ID,
+			EventType: "failed",
+			State:     session.State().String(),
+			PeerID:    session.PeerID.String(),
+		})
+		return
+	}
+	session.Handshake.Transition(proto.EventMutualApproval)
+	h.emitStateChange(session)
+	h.logger.Info("initiator unmask complete", "session", session.ID)
+
+	// Emit completed event
+	h.manager.EmitEvent(Event{
+		SessionID: session.ID,
+		EventType: "completed",
+		State:     session.State().String(),
+		PeerID:    session.PeerID.String(),
+	})
 }
 
 // runResponder runs the responder side of the protocol.
@@ -198,7 +241,50 @@ func (h *StreamHandler) runResponder(session *Session) {
 	h.emitStateChange(session)
 	h.logger.Info("responder vector match complete", "session", session.ID)
 
-	// TODO: Continue to deal breakers in Task 14
+	// Stage 3: Deal Breakers
+	if err := h.doDealBreakersResponder(session); err != nil {
+		h.logger.Error("deal breakers failed", "error", err)
+		session.Handshake.Transition(proto.EventDealBreakersMismatch)
+		h.manager.EmitEvent(Event{
+			SessionID: session.ID,
+			EventType: "failed",
+			State:     session.State().String(),
+			PeerID:    session.PeerID.String(),
+		})
+		return
+	}
+	session.Handshake.Transition(proto.EventDealBreakersMatch)
+	h.emitStateChange(session)
+	h.logger.Info("responder deal breakers complete", "session", session.ID)
+
+	// Skip HumanChat (synthetic chat) for now - go directly to Unmask
+	// In production, there would be an EventChatApproval transition here after chat
+	session.Handshake.Transition(proto.EventChatApproval) // Skip to Unmask state
+	h.emitStateChange(session)
+
+	// Stage 5: Unmask
+	if err := h.doUnmaskResponder(session); err != nil {
+		h.logger.Error("unmask failed", "error", err)
+		session.Handshake.Transition(proto.EventUnmaskRejection)
+		h.manager.EmitEvent(Event{
+			SessionID: session.ID,
+			EventType: "failed",
+			State:     session.State().String(),
+			PeerID:    session.PeerID.String(),
+		})
+		return
+	}
+	session.Handshake.Transition(proto.EventMutualApproval)
+	h.emitStateChange(session)
+	h.logger.Info("responder unmask complete", "session", session.ID)
+
+	// Emit completed event
+	h.manager.EmitEvent(Event{
+		SessionID: session.ID,
+		EventType: "completed",
+		State:     session.State().String(),
+		PeerID:    session.PeerID.String(),
+	})
 }
 
 // sendReject sends a reject message and closes the stream.
@@ -612,6 +698,217 @@ func (h *StreamHandler) doVectorMatchResponder(session *Session) error {
 	return nil
 }
 
+// ===========================================================================
+// Deal Breakers Stage
+// ===========================================================================
+
+// doDealBreakersInitiator performs the initiator side of deal breakers.
+// The initiator sends their questions+answers and receives peer's answers.
+func (h *StreamHandler) doDealBreakersInitiator(session *Session) error {
+	// Verify deal breaker config is set
+	if session.DealBreakerConfig == nil {
+		return fmt.Errorf("deal breaker config not set")
+	}
+
+	// Create deal breaker request payload with our questions and answers
+	questions := make([]*pb.DealBreakerQuestion, len(session.DealBreakerConfig.Questions))
+	for i, q := range session.DealBreakerConfig.Questions {
+		questions[i] = &pb.DealBreakerQuestion{
+			Id:       q.ID,
+			Question: q.Question,
+			Answer:   q.MyAnswer,
+		}
+	}
+
+	reqPayload := &pb.DealBreakerRequestPayload{
+		Questions: questions,
+	}
+
+	payload, err := googleproto.Marshal(reqPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	// Send request
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_DEALBREAKER_REQUEST,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending deal breaker request",
+		"session", session.ID,
+		"questions", len(questions),
+	)
+
+	if err := WriteEnvelope(session.Stream, env); err != nil {
+		return fmt.Errorf("failed to send deal breaker request: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Read response
+	respEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read deal breaker response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Handle rejection
+	if respEnv.Type == pb.MessageType_REJECT {
+		var rejectPayload pb.RejectPayload
+		if err := googleproto.Unmarshal(respEnv.Payload, &rejectPayload); err != nil {
+			return fmt.Errorf("peer rejected (unable to parse reason)")
+		}
+		return fmt.Errorf("peer rejected: %s", rejectPayload.Reason)
+	}
+
+	// Verify message type
+	if respEnv.Type != pb.MessageType_DEALBREAKER_RESPONSE {
+		return fmt.Errorf("unexpected message type: %v", respEnv.Type)
+	}
+
+	// Parse response payload
+	var respPayload pb.DealBreakerResponsePayload
+	if err := googleproto.Unmarshal(respEnv.Payload, &respPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	h.logger.Debug("received deal breaker response",
+		"session", session.ID,
+		"answers", len(respPayload.Answers),
+		"peer_compatible", respPayload.Compatible,
+	)
+
+	// If peer marked us as incompatible, fail
+	if !respPayload.Compatible {
+		return fmt.Errorf("deal breakers failed: incompatible")
+	}
+
+	// Check our compatibility with peer's answers
+	peerAnswers := make(map[string]bool)
+	for _, a := range respPayload.Answers {
+		peerAnswers[a.QuestionId] = a.Answer
+	}
+
+	if !checkCompatibility(session.DealBreakerConfig.Questions, peerAnswers) {
+		return fmt.Errorf("deal breakers failed: incompatible")
+	}
+
+	return nil
+}
+
+// doDealBreakersResponder performs the responder side of deal breakers.
+// The responder receives peer's questions+answers and sends their own answers.
+func (h *StreamHandler) doDealBreakersResponder(session *Session) error {
+	// Verify deal breaker config is set
+	if session.DealBreakerConfig == nil {
+		return fmt.Errorf("deal breaker config not set")
+	}
+
+	// Read request
+	reqEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read deal breaker request: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Verify message type
+	if reqEnv.Type != pb.MessageType_DEALBREAKER_REQUEST {
+		return fmt.Errorf("unexpected message type: %v", reqEnv.Type)
+	}
+
+	// Parse request payload
+	var reqPayload pb.DealBreakerRequestPayload
+	if err := googleproto.Unmarshal(reqEnv.Payload, &reqPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal request: %w", err)
+	}
+
+	h.logger.Debug("received deal breaker request",
+		"session", session.ID,
+		"questions", len(reqPayload.Questions),
+	)
+
+	// Build peer's answers map from the request
+	peerAnswers := make(map[string]bool)
+	for _, q := range reqPayload.Questions {
+		peerAnswers[q.Id] = q.Answer
+	}
+
+	// Check compatibility: do peer's answers meet our requirements?
+	compatible := checkCompatibility(session.DealBreakerConfig.Questions, peerAnswers)
+
+	// Create our answers to send back
+	answers := make([]*pb.DealBreakerAnswer, len(session.DealBreakerConfig.Questions))
+	for i, q := range session.DealBreakerConfig.Questions {
+		answers[i] = &pb.DealBreakerAnswer{
+			QuestionId: q.ID,
+			Answer:     q.MyAnswer,
+		}
+	}
+
+	// Create response payload
+	respPayload := &pb.DealBreakerResponsePayload{
+		Answers:    answers,
+		Compatible: compatible,
+	}
+
+	payload, err := googleproto.Marshal(respPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response payload: %w", err)
+	}
+
+	// Send response
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_DEALBREAKER_RESPONSE,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending deal breaker response",
+		"session", session.ID,
+		"answers", len(answers),
+		"compatible", compatible,
+	)
+
+	if err := WriteEnvelope(session.Stream, env); err != nil {
+		return fmt.Errorf("failed to send deal breaker response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// If not compatible, return error so caller knows to fail
+	if !compatible {
+		return fmt.Errorf("deal breakers failed: incompatible")
+	}
+
+	return nil
+}
+
+// checkCompatibility checks if peer's answers meet our requirements.
+// For each of our required questions, the peer must have provided a matching answer.
+func checkCompatibility(ourQuestions []DealBreakerQuestion, peerAnswers map[string]bool) bool {
+	for _, q := range ourQuestions {
+		if !q.Required {
+			continue // Skip non-required questions
+		}
+
+		peerAnswer, exists := peerAnswers[q.ID]
+		if !exists {
+			// Peer didn't answer this required question
+			return false
+		}
+
+		if peerAnswer != q.MyAnswer {
+			// Peer's answer doesn't match our requirement
+			return false
+		}
+	}
+	return true
+}
+
 // sendRejectWithReason sends a REJECT message with a structured payload.
 func (h *StreamHandler) sendRejectWithReason(s network.Stream, reason, stage string) {
 	rejectPayload := &pb.RejectPayload{
@@ -631,4 +928,265 @@ func (h *StreamHandler) sendRejectWithReason(s network.Stream, reason, stage str
 		Timestamp: time.Now().Unix(),
 	}
 	WriteEnvelope(s, env)
+}
+
+// ===========================================================================
+// Unmask Stage
+// ===========================================================================
+
+// doUnmaskInitiator performs the initiator side of unmask.
+// The initiator waits for human approval, then sends UNMASK_REQUEST and receives UNMASK_RESPONSE.
+func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
+	// Verify identity payload is set
+	if session.IdentityPayload == nil {
+		return fmt.Errorf("identity payload not set")
+	}
+
+	// 1. Mark session as pending approval
+	session.SetPendingApproval("unmask")
+	h.manager.EmitEvent(Event{
+		SessionID: session.ID,
+		EventType: "pending_approval",
+		State:     session.State().String(),
+		PeerID:    session.PeerID.String(),
+	})
+
+	// 2. Wait for human approval (blocking)
+	if !session.WaitForApproval() {
+		// Human rejected - send REJECT
+		h.sendRejectWithReason(session.Stream, "user rejected", "unmask")
+		return fmt.Errorf("user rejected unmask")
+	}
+
+	session.ClearPendingApproval()
+
+	// 3. Send UNMASK_REQUEST ready=true
+	reqPayload := &pb.UnmaskRequestPayload{
+		Ready: true,
+	}
+
+	payload, err := googleproto.Marshal(reqPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request payload: %w", err)
+	}
+
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_UNMASK_REQUEST,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending unmask request", "session", session.ID)
+
+	if err := WriteEnvelope(session.Stream, env); err != nil {
+		return fmt.Errorf("failed to send unmask request: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// 4. Read UNMASK_RESPONSE from peer
+	respEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read unmask response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Handle rejection
+	if respEnv.Type == pb.MessageType_REJECT {
+		var rejectPayload pb.RejectPayload
+		if err := googleproto.Unmarshal(respEnv.Payload, &rejectPayload); err != nil {
+			return fmt.Errorf("peer rejected (unable to parse reason)")
+		}
+		return fmt.Errorf("peer rejected: %s", rejectPayload.Reason)
+	}
+
+	// Verify message type
+	if respEnv.Type != pb.MessageType_UNMASK_RESPONSE {
+		return fmt.Errorf("unexpected message type: %v", respEnv.Type)
+	}
+
+	// Parse response payload
+	var respPayload pb.UnmaskResponsePayload
+	if err := googleproto.Unmarshal(respEnv.Payload, &respPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	h.logger.Debug("received unmask response",
+		"session", session.ID,
+		"accepted", respPayload.Accepted,
+	)
+
+	// 5. Check if peer accepted
+	if !respPayload.Accepted {
+		return fmt.Errorf("peer rejected unmask")
+	}
+
+	// 6. Store peer's identity
+	session.mu.Lock()
+	session.PeerIdentity = respPayload.Identity
+	session.mu.Unlock()
+
+	// 7. Send our identity back to peer (completing the bidirectional exchange)
+	ourRespPayload := &pb.UnmaskResponsePayload{
+		Accepted: true,
+		Identity: session.IdentityPayload,
+	}
+
+	ourPayload, err := googleproto.Marshal(ourRespPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal our response payload: %w", err)
+	}
+
+	ourEnv := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_UNMASK_RESPONSE,
+		Payload:   ourPayload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending our unmask response", "session", session.ID)
+
+	if err := WriteEnvelope(session.Stream, ourEnv); err != nil {
+		return fmt.Errorf("failed to send our unmask response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	h.logger.Info("unmask complete",
+		"session", session.ID,
+		"peer_display_name", respPayload.Identity.GetDisplayName(),
+	)
+
+	return nil
+}
+
+// doUnmaskResponder performs the responder side of unmask.
+// The responder reads UNMASK_REQUEST, waits for human approval, then sends UNMASK_RESPONSE.
+func (h *StreamHandler) doUnmaskResponder(session *Session) error {
+	// Verify identity payload is set
+	if session.IdentityPayload == nil {
+		return fmt.Errorf("identity payload not set")
+	}
+
+	// 1. Read UNMASK_REQUEST from peer
+	reqEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read unmask request: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Handle rejection from peer
+	if reqEnv.Type == pb.MessageType_REJECT {
+		var rejectPayload pb.RejectPayload
+		if err := googleproto.Unmarshal(reqEnv.Payload, &rejectPayload); err != nil {
+			return fmt.Errorf("peer rejected (unable to parse reason)")
+		}
+		return fmt.Errorf("peer rejected: %s", rejectPayload.Reason)
+	}
+
+	// Verify message type
+	if reqEnv.Type != pb.MessageType_UNMASK_REQUEST {
+		return fmt.Errorf("unexpected message type: %v", reqEnv.Type)
+	}
+
+	// Parse request payload
+	var reqPayload pb.UnmaskRequestPayload
+	if err := googleproto.Unmarshal(reqEnv.Payload, &reqPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal request: %w", err)
+	}
+
+	h.logger.Debug("received unmask request",
+		"session", session.ID,
+		"ready", reqPayload.Ready,
+	)
+
+	// 2. Mark session as pending approval
+	session.SetPendingApproval("unmask")
+	h.manager.EmitEvent(Event{
+		SessionID: session.ID,
+		EventType: "pending_approval",
+		State:     session.State().String(),
+		PeerID:    session.PeerID.String(),
+	})
+
+	// 3. Wait for human approval (blocking)
+	approved := session.WaitForApproval()
+	session.ClearPendingApproval()
+
+	// 4. Send UNMASK_RESPONSE
+	var respPayload *pb.UnmaskResponsePayload
+	if approved {
+		respPayload = &pb.UnmaskResponsePayload{
+			Accepted: true,
+			Identity: session.IdentityPayload,
+		}
+	} else {
+		respPayload = &pb.UnmaskResponsePayload{
+			Accepted: false,
+		}
+	}
+
+	payload, err := googleproto.Marshal(respPayload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal response payload: %w", err)
+	}
+
+	env := &pb.HandshakeEnvelope{
+		Type:      pb.MessageType_UNMASK_RESPONSE,
+		Payload:   payload,
+		Timestamp: time.Now().Unix(),
+	}
+
+	h.logger.Debug("sending unmask response",
+		"session", session.ID,
+		"accepted", approved,
+	)
+
+	if err := WriteEnvelope(session.Stream, env); err != nil {
+		return fmt.Errorf("failed to send unmask response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// If not approved, return error
+	if !approved {
+		return fmt.Errorf("user rejected unmask")
+	}
+
+	// 5. Read initiator's identity response
+	peerRespEnv, err := ReadEnvelope(session.Stream)
+	if err != nil {
+		return fmt.Errorf("failed to read peer identity response: %w", err)
+	}
+
+	session.UpdateActivity()
+
+	// Verify message type
+	if peerRespEnv.Type != pb.MessageType_UNMASK_RESPONSE {
+		return fmt.Errorf("unexpected message type for peer identity: %v", peerRespEnv.Type)
+	}
+
+	// Parse peer's identity
+	var peerRespPayload pb.UnmaskResponsePayload
+	if err := googleproto.Unmarshal(peerRespEnv.Payload, &peerRespPayload); err != nil {
+		return fmt.Errorf("failed to unmarshal peer identity: %w", err)
+	}
+
+	h.logger.Debug("received peer identity",
+		"session", session.ID,
+		"accepted", peerRespPayload.Accepted,
+	)
+
+	// Store peer's identity
+	session.mu.Lock()
+	session.PeerIdentity = peerRespPayload.Identity
+	session.mu.Unlock()
+
+	h.logger.Info("unmask complete",
+		"session", session.ID,
+		"peer_display_name", peerRespPayload.Identity.GetDisplayName(),
+	)
+
+	return nil
 }
