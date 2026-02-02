@@ -570,11 +570,20 @@ func (d *Daemon) StartHandshake(ctx context.Context, req *pb.StartHandshakeReque
 
 // ListHandshakes implements pb.AgentServiceServer.
 func (d *Daemon) ListHandshakes(ctx context.Context, req *pb.ListHandshakesRequest) (*pb.ListHandshakesResponse, error) {
-	sessions := d.handshakeManager.ListSessions()
-	handshakes := make([]*pb.HandshakeInfo, 0, len(sessions))
+	// Use ListSessionsInfo for read-only access to avoid data races
+	sessionInfos := d.handshakeManager.ListSessionsInfo()
+	handshakes := make([]*pb.HandshakeInfo, 0, len(sessionInfos))
 
-	for _, s := range sessions {
-		handshakes = append(handshakes, sessionToHandshakeInfo(s))
+	for _, info := range sessionInfos {
+		handshakes = append(handshakes, &pb.HandshakeInfo{
+			SessionId:           info.ID,
+			PeerId:              info.PeerID,
+			State:               info.State,
+			Role:                info.Role,
+			ElapsedSeconds:      info.ElapsedSeconds,
+			PendingApproval:     info.PendingApproval,
+			PendingApprovalType: info.ApprovalType,
+		})
 	}
 
 	return &pb.ListHandshakesResponse{
@@ -606,27 +615,37 @@ func (d *Daemon) ApproveHandshake(ctx context.Context, req *pb.ApproveHandshakeR
 		}, nil
 	}
 
-	if !session.PendingApproval {
+	if !session.IsPendingApproval() {
 		return &pb.ApproveHandshakeResponse{
 			Success: false,
 			Error:   "session is not pending approval",
 		}, nil
 	}
 
+	approvalType := session.GetPendingApprovalType()
+
 	// For unmask approval, set the identity payload
-	if session.PendingApprovalType == "unmask" {
-		session.IdentityPayload = &pb.IdentityPayload{
+	if approvalType == "unmask" {
+		session.SetIdentityPayload(&pb.IdentityPayload{
 			DisplayName:  req.DisplayName,
 			Email:        req.Email,
 			SignalNumber: req.SignalNumber,
 			MatrixId:     req.MatrixId,
-		}
+		})
 	}
 
 	// Signal approval to unblock the waiting protocol handler
-	session.SignalApproval(true)
+	if !session.SignalApproval(true) {
+		d.logger.Warn("approval signal dropped - channel full, session may have timed out",
+			"session_id", session.ID,
+		)
+		return &pb.ApproveHandshakeResponse{
+			Success: false,
+			Error:   "approval signal could not be delivered (session may have timed out)",
+		}, nil
+	}
 
-	d.logger.Info("approved handshake", "session_id", session.ID, "approval_type", session.PendingApprovalType)
+	d.logger.Info("approved handshake", "session_id", session.ID, "approval_type", approvalType)
 
 	return &pb.ApproveHandshakeResponse{
 		Success: true,
@@ -646,8 +665,12 @@ func (d *Daemon) RejectHandshake(ctx context.Context, req *pb.RejectHandshakeReq
 	d.logger.Info("rejected handshake", "session_id", session.ID, "reason", req.Reason)
 
 	// If session is pending approval, signal rejection
-	if session.PendingApproval {
-		session.SignalApproval(false)
+	if session.IsPendingApproval() {
+		if !session.SignalApproval(false) {
+			d.logger.Warn("rejection signal dropped - channel full, session may have timed out",
+				"session_id", session.ID,
+			)
+		}
 	} else {
 		// If not pending, just remove the session
 		d.handshakeManager.RemoveSession(session.ID)
@@ -688,6 +711,7 @@ func (d *Daemon) WatchHandshakes(req *pb.WatchHandshakesRequest, stream grpc.Ser
 }
 
 // sessionToHandshakeInfo converts a session to a HandshakeInfo proto message.
+// Uses thread-safe accessors to prevent data races.
 func sessionToHandshakeInfo(s *handshake.Session) *pb.HandshakeInfo {
 	return &pb.HandshakeInfo{
 		SessionId:           s.ID,
@@ -695,7 +719,7 @@ func sessionToHandshakeInfo(s *handshake.Session) *pb.HandshakeInfo {
 		State:               s.State().String(),
 		Role:                s.Role.String(),
 		ElapsedSeconds:      s.ElapsedSeconds(),
-		PendingApproval:     s.PendingApproval,
-		PendingApprovalType: s.PendingApprovalType,
+		PendingApproval:     s.IsPendingApproval(),
+		PendingApprovalType: s.GetPendingApprovalType(),
 	}
 }

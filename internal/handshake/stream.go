@@ -132,7 +132,7 @@ func (h *StreamHandler) runInitiator(session *Session) {
 	// Stage 1: Attestation
 	if err := h.doAttestationInitiator(session); err != nil {
 		h.logger.Error("attestation failed", "error", err)
-		h.transition(session, proto.EventAttestationFailure)
+		_ = h.transition(session, proto.EventAttestationFailure) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -141,14 +141,16 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventAttestationSuccess)
+	if err := h.transition(session, proto.EventAttestationSuccess); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("initiator attestation complete", "session", session.ID)
 
 	// Stage 2: Vector Match
 	if err := h.doVectorMatchInitiator(session); err != nil {
 		h.logger.Error("vector match failed", "error", err)
-		h.transition(session, proto.EventMatchBelowThreshold)
+		_ = h.transition(session, proto.EventMatchBelowThreshold) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -157,14 +159,16 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventMatchAboveThreshold)
+	if err := h.transition(session, proto.EventMatchAboveThreshold); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("initiator vector match complete", "session", session.ID)
 
 	// Stage 3: Deal Breakers
 	if err := h.doDealBreakersInitiator(session); err != nil {
 		h.logger.Error("deal breakers failed", "error", err)
-		h.transition(session, proto.EventDealBreakersMismatch)
+		_ = h.transition(session, proto.EventDealBreakersMismatch) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -173,19 +177,23 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventDealBreakersMatch)
+	if err := h.transition(session, proto.EventDealBreakersMatch); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("initiator deal breakers complete", "session", session.ID)
 
 	// Skip HumanChat (synthetic chat) for now - go directly to Unmask
 	// In production, there would be an EventChatApproval transition here after chat
-	h.transition(session, proto.EventChatApproval) // Skip to Unmask state
+	if err := h.transition(session, proto.EventChatApproval); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 
 	// Stage 5: Unmask
 	if err := h.doUnmaskInitiator(session); err != nil {
 		h.logger.Error("unmask failed", "error", err)
-		h.transition(session, proto.EventUnmaskRejection)
+		_ = h.transition(session, proto.EventUnmaskRejection) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -194,7 +202,9 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventMutualApproval)
+	if err := h.transition(session, proto.EventMutualApproval); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("initiator unmask complete", "session", session.ID)
 
@@ -212,7 +222,7 @@ func (h *StreamHandler) runResponder(session *Session) {
 	// Stage 1: Attestation
 	if err := h.doAttestationResponder(session); err != nil {
 		h.logger.Error("attestation failed", "error", err)
-		h.transition(session, proto.EventAttestationFailure)
+		_ = h.transition(session, proto.EventAttestationFailure) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -221,14 +231,16 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventAttestationSuccess)
+	if err := h.transition(session, proto.EventAttestationSuccess); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("responder attestation complete", "session", session.ID)
 
 	// Stage 2: Vector Match
 	if err := h.doVectorMatchResponder(session); err != nil {
 		h.logger.Error("vector match failed", "error", err)
-		h.transition(session, proto.EventMatchBelowThreshold)
+		_ = h.transition(session, proto.EventMatchBelowThreshold) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -237,14 +249,16 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventMatchAboveThreshold)
+	if err := h.transition(session, proto.EventMatchAboveThreshold); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("responder vector match complete", "session", session.ID)
 
 	// Stage 3: Deal Breakers
 	if err := h.doDealBreakersResponder(session); err != nil {
 		h.logger.Error("deal breakers failed", "error", err)
-		h.transition(session, proto.EventDealBreakersMismatch)
+		_ = h.transition(session, proto.EventDealBreakersMismatch) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -253,19 +267,23 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventDealBreakersMatch)
+	if err := h.transition(session, proto.EventDealBreakersMatch); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("responder deal breakers complete", "session", session.ID)
 
 	// Skip HumanChat (synthetic chat) for now - go directly to Unmask
 	// In production, there would be an EventChatApproval transition here after chat
-	h.transition(session, proto.EventChatApproval) // Skip to Unmask state
+	if err := h.transition(session, proto.EventChatApproval); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 
 	// Stage 5: Unmask
 	if err := h.doUnmaskResponder(session); err != nil {
 		h.logger.Error("unmask failed", "error", err)
-		h.transition(session, proto.EventUnmaskRejection)
+		_ = h.transition(session, proto.EventUnmaskRejection) // Best-effort on error path
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -274,7 +292,9 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	h.transition(session, proto.EventMutualApproval)
+	if err := h.transition(session, proto.EventMutualApproval); err != nil {
+		return // State machine error - abort protocol
+	}
 	h.emitStateChange(session)
 	h.logger.Info("responder unmask complete", "session", session.ID)
 
@@ -310,9 +330,9 @@ func (h *StreamHandler) emitStateChange(session *Session) {
 	})
 }
 
-// transition performs a state transition and logs any errors.
-// This is a helper to ensure transition errors are never silently ignored.
-func (h *StreamHandler) transition(session *Session, event proto.Event) {
+// transition performs a state transition and returns any error.
+// Errors are also logged to ensure they're never silently ignored.
+func (h *StreamHandler) transition(session *Session, event proto.Event) error {
 	if err := session.Handshake.Transition(event); err != nil {
 		h.logger.Error("state transition failed",
 			"session", session.ID,
@@ -320,7 +340,9 @@ func (h *StreamHandler) transition(session *Session, event proto.Event) {
 			"current_state", session.State().String(),
 			"error", err,
 		)
+		return err
 	}
+	return nil
 }
 
 // doAttestationInitiator performs the initiator side of attestation.

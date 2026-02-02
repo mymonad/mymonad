@@ -2,6 +2,7 @@ package handshake
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -196,6 +197,7 @@ func (m *Manager) Subscribe() <-chan Event {
 }
 
 // EmitEvent sends an event to all subscribers.
+// Events are dropped (with warning logged) if a subscriber's channel is full.
 func (m *Manager) EmitEvent(e Event) {
 	m.eventsMu.RLock()
 	defer m.eventsMu.RUnlock()
@@ -204,7 +206,12 @@ func (m *Manager) EmitEvent(e Event) {
 		select {
 		case ch <- e:
 		default:
-			// Channel full, skip
+			// Channel full - log warning so operators can detect subscriber backlog
+			slog.Warn("dropped handshake event due to full subscriber channel",
+				"session_id", e.SessionID,
+				"event_type", e.EventType,
+				"state", e.State,
+			)
 		}
 	}
 }
