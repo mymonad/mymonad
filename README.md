@@ -40,6 +40,42 @@ MyMonad enables privacy-preserving compatibility matching between users via thei
 
 No raw user data ever leaves the local device. Only cryptographic proofs and similarity scores are exchanged.
 
+## Origin of the Name
+
+The name *MyMonad* draws from two distinct but converging intellectual traditions: **Leibnizian philosophy** and **functional programming**.
+
+### The Philosophical Origin (Leibniz)
+
+In Gottfried Wilhelm Leibniz's *Monadology*, a **Monad** is an elementary, indivisible, and autonomous substance.
+
+- **Windowless Entities** — Leibniz famously stated that Monads *"have no windows through which anything could come in or go out."* This is the perfect metaphor for our zero-trust architecture.
+
+- **Mirror of the Universe** — Each Monad reflects the entire universe from its own unique perspective. Similarly, your Monad (affinity vector) is a digital reflection of your intellectual and personal essence, compressed into a high-dimensional mathematical object.
+
+- **Pre-established Harmony** — Monads do not interact directly; their apparent interaction is governed by a pre-established harmony. In our protocol, this harmony is the Handshake Protocol and the TEE Relay, which allow two isolated entities to find common ground without ever "opening their windows" to let raw data leak.
+
+### The Computational Origin (Category Theory)
+
+In functional programming and category theory, a **Monad** is a structure that encapsulates data and computation while isolating side effects.
+
+- **Isolation** — Just as a monad in code keeps logic pure and side-effect-free, MyMonad isolates your personal data within a local daemon. The "side effect" of social interaction does not pollute or compromise your primary state: privacy.
+
+- **Transformation** — The pipeline of *Ingestion → Embedding → Vector* is a monadic transformation where raw, messy information becomes a clean, actionable mathematical representation.
+
+### The "My" Prefix
+
+The possessive prefix emphasizes **individual responsibility and sovereignty**:
+
+- You own your Monad
+- You generate it locally
+- You control its visibility
+
+It is not a profile stored on a corporate server. It is a part of your digital self, hosted and protected by your own hardware.
+
+> ***MyMonad** = My Self + My Privacy + My Math*
+>
+> *We are all isolated monads. This protocol is simply the mathematical harmony that allows us to find each other without sacrificing our isolation.*
+
 ## Architecture
 
 ```
