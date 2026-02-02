@@ -422,3 +422,96 @@ func TestManager_MultipleSubscribers(t *testing.T) {
 		}
 	}
 }
+
+func TestManager_ListSessionsInfo(t *testing.T) {
+	cfg := ManagerConfig{
+		CooldownDuration: 1 * time.Hour,
+		Threshold:        0.85,
+	}
+	m := NewManager(nil, cfg)
+
+	t.Run("empty initially", func(t *testing.T) {
+		infos := m.ListSessionsInfo()
+		if len(infos) != 0 {
+			t.Errorf("expected 0 sessions, got %d", len(infos))
+		}
+	})
+
+	t.Run("returns session info", func(t *testing.T) {
+		peerID1, _ := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+		peerID2, _ := peer.Decode("12D3KooWBmAwcd4PJNJvfV89HwE48nwkRmAgo8Vy3uQEyNNHBox2")
+
+		s1 := m.CreateSession(peerID1, protocol.RoleInitiator)
+		_ = m.CreateSession(peerID2, protocol.RoleResponder)
+
+		// Set pending approval on one session
+		s1.SetPendingApproval("unmask")
+
+		infos := m.ListSessionsInfo()
+		if len(infos) != 2 {
+			t.Errorf("expected 2 sessions, got %d", len(infos))
+		}
+
+		// Find s1 info
+		var s1Info *SessionInfo
+		for i := range infos {
+			if infos[i].ID == s1.ID {
+				s1Info = &infos[i]
+				break
+			}
+		}
+
+		if s1Info == nil {
+			t.Fatal("session 1 not found in ListSessionsInfo")
+		}
+
+		if s1Info.PeerID != peerID1.String() {
+			t.Errorf("expected peer ID %s, got %s", peerID1.String(), s1Info.PeerID)
+		}
+		if s1Info.Role != "Initiator" {
+			t.Errorf("expected role Initiator, got %s", s1Info.Role)
+		}
+		if s1Info.State != "Idle" {
+			t.Errorf("expected state Idle, got %s", s1Info.State)
+		}
+		if !s1Info.PendingApproval {
+			t.Error("expected PendingApproval to be true")
+		}
+		if s1Info.ApprovalType != "unmask" {
+			t.Errorf("expected approval type 'unmask', got '%s'", s1Info.ApprovalType)
+		}
+	})
+
+	t.Run("info is a snapshot not live reference", func(t *testing.T) {
+		peerID, _ := peer.Decode("12D3KooWNvSZnPi3RrPNb9vuPpE24Hq3njz7AHvJtvJsLanPgiKS")
+		s := m.CreateSession(peerID, protocol.RoleInitiator)
+
+		infos := m.ListSessionsInfo()
+		var info *SessionInfo
+		for i := range infos {
+			if infos[i].ID == s.ID {
+				info = &infos[i]
+				break
+			}
+		}
+
+		if info == nil {
+			t.Fatal("session not found")
+		}
+
+		// The original state
+		if info.State != "Idle" {
+			t.Errorf("expected state Idle, got %s", info.State)
+		}
+
+		// Transition the session
+		_ = s.Handshake.Transition(protocol.EventInitiate)
+
+		// The info should still show the old state (it's a snapshot)
+		// Note: This is expected behavior - ListSessionsInfo returns a snapshot
+		// The live session state has changed, but our info copy hasn't
+		if info.State != "Idle" {
+			t.Error("SessionInfo should be a snapshot, not a live reference")
+		}
+	})
+}

@@ -1002,11 +1002,15 @@ func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
 
 	approved, err := session.WaitForApproval(ctx)
 	if err != nil {
+		// Drain approval channel to prevent stale signals from affecting future operations
+		session.DrainApprovalChannel()
+		session.ClearPendingApproval()
 		h.sendRejectWithReason(stream, "approval timeout", "unmask")
 		return fmt.Errorf("approval timeout: %w", err)
 	}
 	if !approved {
 		// Human rejected - send REJECT
+		session.ClearPendingApproval()
 		h.sendRejectWithReason(stream, "user rejected", "unmask")
 		return fmt.Errorf("user rejected unmask")
 	}
@@ -1171,6 +1175,8 @@ func (h *StreamHandler) doUnmaskResponder(session *Session) error {
 
 	approved, err := session.WaitForApproval(ctx)
 	if err != nil {
+		// Drain approval channel to prevent stale signals from affecting future operations
+		session.DrainApprovalChannel()
 		session.ClearPendingApproval()
 		h.sendRejectWithReason(stream, "approval timeout", "unmask")
 		return fmt.Errorf("approval timeout: %w", err)

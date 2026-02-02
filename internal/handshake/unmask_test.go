@@ -17,6 +17,18 @@ import (
 )
 
 // ===========================================================================
+// Test Helpers
+// ===========================================================================
+
+// mustSignalApproval signals approval and panics if the signal was dropped.
+// This ensures test code doesn't silently ignore dropped approval signals.
+func mustSignalApproval(session *Session, approved bool) {
+	if !session.SignalApproval(approved) {
+		panic("SignalApproval failed: channel full, signal dropped")
+	}
+}
+
+// ===========================================================================
 // Unmask Stage Tests
 // ===========================================================================
 
@@ -77,11 +89,11 @@ func TestUnmask_BothApprove(t *testing.T) {
 	// Simulate human approval in background (after a brief delay to let protocol start)
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		initiatorSession.SignalApproval(true)
+		mustSignalApproval(initiatorSession, true)
 	}()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		responderSession.SignalApproval(true)
+		mustSignalApproval(responderSession, true)
 	}()
 
 	// Run responder in background
@@ -174,13 +186,13 @@ func TestUnmask_InitiatorRejects(t *testing.T) {
 	// Initiator rejects
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		initiatorSession.SignalApproval(false) // Reject
+		mustSignalApproval(initiatorSession, false) // Reject
 	}()
 
 	// Responder approves (but won't matter since initiator rejects first)
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		responderSession.SignalApproval(true)
+		mustSignalApproval(responderSession, true)
 	}()
 
 	// Run both sides (responder may error due to stream close)
@@ -257,13 +269,13 @@ func TestUnmask_ResponderRejects(t *testing.T) {
 	// Initiator approves
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		initiatorSession.SignalApproval(true)
+		mustSignalApproval(initiatorSession, true)
 	}()
 
 	// Responder rejects after receiving request
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		responderSession.SignalApproval(false) // Reject
+		mustSignalApproval(responderSession, false) // Reject
 	}()
 
 	// Run both sides
@@ -326,7 +338,7 @@ func TestUnmask_PendingApprovalEmitted(t *testing.T) {
 	// Signal approval after a delay
 	go func() {
 		time.Sleep(100 * time.Millisecond)
-		session.SignalApproval(false) // Reject to terminate quickly
+		mustSignalApproval(session, false) // Reject to terminate quickly
 	}()
 
 	session.Stream = &mockStream{reader: r, writer: &buf}
@@ -430,7 +442,7 @@ func TestUnmaskInitiator_SendsValidRequest(t *testing.T) {
 	// Signal approval immediately so request gets sent
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		session.SignalApproval(true)
+		mustSignalApproval(session, true)
 		// Close after writing - this will cause read to fail
 		time.Sleep(50 * time.Millisecond)
 		w.Close()
@@ -525,7 +537,7 @@ func TestUnmaskResponder_SendsValidResponse(t *testing.T) {
 		WriteEnvelope(inputW, env)
 		// Signal approval after request is read
 		time.Sleep(50 * time.Millisecond)
-		session.SignalApproval(true)
+		mustSignalApproval(session, true)
 		// Wait for response to be written, then send initiator's identity
 		time.Sleep(50 * time.Millisecond)
 		WriteEnvelope(inputW, initiatorEnv)
@@ -684,7 +696,7 @@ func TestUnmaskInitiator_HandlesReject(t *testing.T) {
 	// Signal approval to send request
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		session.SignalApproval(true)
+		mustSignalApproval(session, true)
 	}()
 
 	session.Stream = &mockStream{
@@ -780,7 +792,7 @@ func TestUnmaskInitiator_RejectsWrongMessageType(t *testing.T) {
 	// Signal approval to send request
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		session.SignalApproval(true)
+		mustSignalApproval(session, true)
 	}()
 
 	session.Stream = &mockStream{
@@ -841,7 +853,7 @@ func TestSession_ApprovalChannel(t *testing.T) {
 
 		go func() {
 			time.Sleep(10 * time.Millisecond)
-			session.SignalApproval(true)
+			mustSignalApproval(session, true)
 		}()
 
 		ctx := context.Background()
@@ -859,7 +871,7 @@ func TestSession_ApprovalChannel(t *testing.T) {
 
 		go func() {
 			time.Sleep(10 * time.Millisecond)
-			session.SignalApproval(false)
+			mustSignalApproval(session, false)
 		}()
 
 		ctx := context.Background()
@@ -875,12 +887,17 @@ func TestSession_ApprovalChannel(t *testing.T) {
 	t.Run("multiple signals - first wins", func(t *testing.T) {
 		session := NewSession(testPeerID, protocol.RoleInitiator, 0.7)
 
-		go func() {
-			time.Sleep(10 * time.Millisecond)
-			session.SignalApproval(true)
-			session.SignalApproval(false) // Should be ignored (non-blocking)
-		}()
+		// Send first signal - must succeed
+		if !session.SignalApproval(true) {
+			t.Fatal("first signal should succeed")
+		}
 
+		// Send second signal - must fail (channel full)
+		if session.SignalApproval(false) {
+			t.Error("second signal should be dropped (channel full)")
+		}
+
+		// Now consume - should get first (true) value
 		ctx := context.Background()
 		result, err := session.WaitForApproval(ctx)
 		if err != nil {

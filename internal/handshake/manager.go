@@ -155,11 +155,18 @@ func (m *Manager) ListSessions() []*Session {
 // ListSessionsInfo returns read-only information about all sessions.
 // This is the preferred method for listing sessions as it returns defensive copies.
 func (m *Manager) ListSessionsInfo() []SessionInfo {
+	// First, copy session pointers under manager lock to avoid lock ordering issues.
+	// This prevents deadlocks where another goroutine holds session lock and wants manager lock.
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	result := make([]SessionInfo, 0, len(m.sessions))
+	sessions := make([]*Session, 0, len(m.sessions))
 	for _, s := range m.sessions {
+		sessions = append(sessions, s)
+	}
+	m.mu.RUnlock()
+
+	// Now iterate over copied slice, acquiring session locks individually
+	result := make([]SessionInfo, 0, len(sessions))
+	for _, s := range sessions {
 		s.mu.RLock()
 		info := SessionInfo{
 			ID:              s.ID,

@@ -34,6 +34,14 @@ func testLogger() *slog.Logger {
 	}))
 }
 
+// mustSignalApproval signals approval and panics if the signal was dropped.
+// This ensures test code doesn't silently ignore dropped approval signals.
+func mustSignalApproval(session *handshake.Session, approved bool) {
+	if !session.SignalApproval(approved) {
+		panic("SignalApproval failed: channel full, signal dropped")
+	}
+}
+
 // createTestHost creates a libp2p host for testing.
 func createTestHost(t *testing.T) host.Host {
 	t.Helper()
@@ -294,7 +302,7 @@ func TestHandshake_Session_ApprovalFlow(t *testing.T) {
 	// Signal approval in background
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		session.SignalApproval(true)
+		mustSignalApproval(session, true)
 	}()
 
 	// Wait for approval with context
@@ -778,7 +786,7 @@ func TestHandshake_Integration_FullHandshakeSuccess(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
 			if session1 != nil && session1.IsPendingApproval() {
-				session1.SignalApproval(true)
+				mustSignalApproval(session1, true)
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -789,7 +797,7 @@ func TestHandshake_Integration_FullHandshakeSuccess(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
 			if session2 != nil && session2.IsPendingApproval() {
-				session2.SignalApproval(true)
+				mustSignalApproval(session2, true)
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -1197,7 +1205,7 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			if session1 != nil && session1.IsPendingApproval() {
 				t.Log("host1 approving unmask")
-				session1.SignalApproval(true) // Approve
+				mustSignalApproval(session1, true) // Approve
 				return
 			}
 			time.Sleep(10 * time.Millisecond)
@@ -1209,7 +1217,7 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			if session2 != nil && session2.IsPendingApproval() {
 				t.Log("host2 REJECTING unmask")
-				session2.SignalApproval(false) // REJECT!
+				mustSignalApproval(session2, false) // REJECT!
 				return
 			}
 			time.Sleep(10 * time.Millisecond)

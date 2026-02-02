@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/pkg/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 // ErrApprovalTimeout is returned when WaitForApproval times out.
@@ -204,7 +205,9 @@ func (s *Session) WaitForApproval(ctx context.Context) (bool, error) {
 }
 
 // SignalApproval signals approval (true) or rejection (false) to unblock WaitForApproval.
-// This is non-blocking; if the channel is full, the signal is dropped and logged.
+// This is non-blocking; if the channel is full (signal already pending), the new signal
+// is dropped and the method returns false. Callers should check the return value and log
+// if needed. Returns true if signal was successfully sent.
 func (s *Session) SignalApproval(approved bool) bool {
 	select {
 	case s.approvalCh <- approved:
@@ -212,6 +215,17 @@ func (s *Session) SignalApproval(approved bool) bool {
 	default:
 		// Channel full, signal already pending
 		return false
+	}
+}
+
+// DrainApprovalChannel removes any pending approval signal from the channel.
+// This should be called after timeout to prevent stale signals from affecting future waits.
+func (s *Session) DrainApprovalChannel() {
+	select {
+	case <-s.approvalCh:
+		// Discarded pending approval
+	default:
+		// Channel was empty
 	}
 }
 
@@ -260,11 +274,18 @@ func (s *Session) SetDealBreakerConfig(cfg *DealBreakerConfig) {
 	s.DealBreakerConfig = cfg
 }
 
-// GetDealBreakerConfig returns the deal breaker configuration (thread-safe).
+// GetDealBreakerConfig returns a defensive copy of the deal breaker configuration (thread-safe).
+// Callers may safely modify the returned value without affecting session state.
 func (s *Session) GetDealBreakerConfig() *DealBreakerConfig {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.DealBreakerConfig
+	if s.DealBreakerConfig == nil {
+		return nil
+	}
+	// Deep copy to prevent external mutation
+	questions := make([]DealBreakerQuestion, len(s.DealBreakerConfig.Questions))
+	copy(questions, s.DealBreakerConfig.Questions)
+	return &DealBreakerConfig{Questions: questions}
 }
 
 // SetIdentityPayload sets the identity payload (thread-safe).
@@ -274,11 +295,15 @@ func (s *Session) SetIdentityPayload(payload *pb.IdentityPayload) {
 	s.IdentityPayload = payload
 }
 
-// GetIdentityPayload returns the identity payload (thread-safe).
+// GetIdentityPayload returns a defensive copy of the identity payload (thread-safe).
+// Callers may safely modify the returned value without affecting session state.
 func (s *Session) GetIdentityPayload() *pb.IdentityPayload {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.IdentityPayload
+	if s.IdentityPayload == nil {
+		return nil
+	}
+	return proto.Clone(s.IdentityPayload).(*pb.IdentityPayload)
 }
 
 // SetPeerIdentity sets the peer identity (thread-safe).
@@ -288,11 +313,15 @@ func (s *Session) SetPeerIdentity(payload *pb.IdentityPayload) {
 	s.PeerIdentity = payload
 }
 
-// GetPeerIdentity returns the peer identity (thread-safe).
+// GetPeerIdentity returns a defensive copy of the peer identity (thread-safe).
+// Callers may safely modify the returned value without affecting session state.
 func (s *Session) GetPeerIdentity() *pb.IdentityPayload {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.PeerIdentity
+	if s.PeerIdentity == nil {
+		return nil
+	}
+	return proto.Clone(s.PeerIdentity).(*pb.IdentityPayload)
 }
 
 // SetStream sets the network stream (thread-safe).
