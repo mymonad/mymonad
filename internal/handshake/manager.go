@@ -39,6 +39,20 @@ type Event struct {
 	ElapsedSeconds int64
 }
 
+// SessionInfo contains read-only information about a session.
+// This is returned by ListSessionsInfo to avoid exposing mutable internal state.
+type SessionInfo struct {
+	ID              string
+	PeerID          string
+	Role            string
+	State           string
+	StartedAt       time.Time
+	LastActivity    time.Time
+	ElapsedSeconds  int64
+	PendingApproval bool
+	ApprovalType    string
+}
+
 // NewManager creates a new handshake manager.
 func NewManager(h host.Host, cfg ManagerConfig) *Manager {
 	return &Manager{
@@ -125,6 +139,8 @@ func (m *Manager) RemoveSession(id string) {
 }
 
 // ListSessions returns all sessions.
+// DEPRECATED: Use ListSessionsInfo for read-only access to avoid data races.
+// This method is kept for backward compatibility but callers should not modify the returned sessions.
 func (m *Manager) ListSessions() []*Session {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -132,6 +148,32 @@ func (m *Manager) ListSessions() []*Session {
 	result := make([]*Session, 0, len(m.sessions))
 	for _, s := range m.sessions {
 		result = append(result, s)
+	}
+	return result
+}
+
+// ListSessionsInfo returns read-only information about all sessions.
+// This is the preferred method for listing sessions as it returns defensive copies.
+func (m *Manager) ListSessionsInfo() []SessionInfo {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]SessionInfo, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		s.mu.RLock()
+		info := SessionInfo{
+			ID:              s.ID,
+			PeerID:          s.PeerID.String(),
+			Role:            s.Role.String(),
+			State:           s.Handshake.State().String(),
+			StartedAt:       s.StartedAt,
+			LastActivity:    s.LastActivity,
+			ElapsedSeconds:  int64(time.Since(s.StartedAt).Seconds()),
+			PendingApproval: s.PendingApproval,
+			ApprovalType:    s.PendingApprovalType,
+		}
+		s.mu.RUnlock()
+		result = append(result, info)
 	}
 	return result
 }

@@ -2,6 +2,7 @@ package handshake
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -843,7 +844,11 @@ func TestSession_ApprovalChannel(t *testing.T) {
 			session.SignalApproval(true)
 		}()
 
-		result := session.WaitForApproval()
+		ctx := context.Background()
+		result, err := session.WaitForApproval(ctx)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
 		if !result {
 			t.Error("expected approval to be true")
 		}
@@ -857,7 +862,11 @@ func TestSession_ApprovalChannel(t *testing.T) {
 			session.SignalApproval(false)
 		}()
 
-		result := session.WaitForApproval()
+		ctx := context.Background()
+		result, err := session.WaitForApproval(ctx)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
 		if result {
 			t.Error("expected approval to be false")
 		}
@@ -872,9 +881,26 @@ func TestSession_ApprovalChannel(t *testing.T) {
 			session.SignalApproval(false) // Should be ignored (non-blocking)
 		}()
 
-		result := session.WaitForApproval()
+		ctx := context.Background()
+		result, err := session.WaitForApproval(ctx)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
 		if !result {
 			t.Error("expected first approval to be true")
+		}
+	})
+
+	t.Run("context timeout", func(t *testing.T) {
+		session := NewSession(testPeerID, protocol.RoleInitiator, 0.7)
+
+		// Don't signal approval - let context timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		_, err := session.WaitForApproval(ctx)
+		if err != ErrApprovalTimeout {
+			t.Errorf("expected ErrApprovalTimeout, got: %v", err)
 		}
 	})
 }

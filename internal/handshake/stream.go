@@ -62,7 +62,7 @@ func (h *StreamHandler) handleStream(s network.Stream) {
 
 	// Create session as responder
 	session := h.manager.CreateSession(peerID, proto.RoleResponder)
-	session.Stream = s
+	session.SetStream(s)
 
 	h.manager.EmitEvent(Event{
 		SessionID: session.ID,
@@ -90,7 +90,7 @@ func (h *StreamHandler) InitiateHandshake(ctx context.Context, host host.Host, p
 
 	// Create session as initiator
 	session := h.manager.CreateSession(peerID, proto.RoleInitiator)
-	session.Stream = s
+	session.SetStream(s)
 
 	h.manager.EmitEvent(Event{
 		SessionID: session.ID,
@@ -132,7 +132,7 @@ func (h *StreamHandler) runInitiator(session *Session) {
 	// Stage 1: Attestation
 	if err := h.doAttestationInitiator(session); err != nil {
 		h.logger.Error("attestation failed", "error", err)
-		session.Handshake.Transition(proto.EventAttestationFailure)
+		h.transition(session, proto.EventAttestationFailure)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -141,14 +141,14 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventAttestationSuccess)
+	h.transition(session, proto.EventAttestationSuccess)
 	h.emitStateChange(session)
 	h.logger.Info("initiator attestation complete", "session", session.ID)
 
 	// Stage 2: Vector Match
 	if err := h.doVectorMatchInitiator(session); err != nil {
 		h.logger.Error("vector match failed", "error", err)
-		session.Handshake.Transition(proto.EventMatchBelowThreshold)
+		h.transition(session, proto.EventMatchBelowThreshold)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -157,14 +157,14 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventMatchAboveThreshold)
+	h.transition(session, proto.EventMatchAboveThreshold)
 	h.emitStateChange(session)
 	h.logger.Info("initiator vector match complete", "session", session.ID)
 
 	// Stage 3: Deal Breakers
 	if err := h.doDealBreakersInitiator(session); err != nil {
 		h.logger.Error("deal breakers failed", "error", err)
-		session.Handshake.Transition(proto.EventDealBreakersMismatch)
+		h.transition(session, proto.EventDealBreakersMismatch)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -173,19 +173,19 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventDealBreakersMatch)
+	h.transition(session, proto.EventDealBreakersMatch)
 	h.emitStateChange(session)
 	h.logger.Info("initiator deal breakers complete", "session", session.ID)
 
 	// Skip HumanChat (synthetic chat) for now - go directly to Unmask
 	// In production, there would be an EventChatApproval transition here after chat
-	session.Handshake.Transition(proto.EventChatApproval) // Skip to Unmask state
+	h.transition(session, proto.EventChatApproval) // Skip to Unmask state
 	h.emitStateChange(session)
 
 	// Stage 5: Unmask
 	if err := h.doUnmaskInitiator(session); err != nil {
 		h.logger.Error("unmask failed", "error", err)
-		session.Handshake.Transition(proto.EventUnmaskRejection)
+		h.transition(session, proto.EventUnmaskRejection)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -194,7 +194,7 @@ func (h *StreamHandler) runInitiator(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventMutualApproval)
+	h.transition(session, proto.EventMutualApproval)
 	h.emitStateChange(session)
 	h.logger.Info("initiator unmask complete", "session", session.ID)
 
@@ -212,7 +212,7 @@ func (h *StreamHandler) runResponder(session *Session) {
 	// Stage 1: Attestation
 	if err := h.doAttestationResponder(session); err != nil {
 		h.logger.Error("attestation failed", "error", err)
-		session.Handshake.Transition(proto.EventAttestationFailure)
+		h.transition(session, proto.EventAttestationFailure)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -221,14 +221,14 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventAttestationSuccess)
+	h.transition(session, proto.EventAttestationSuccess)
 	h.emitStateChange(session)
 	h.logger.Info("responder attestation complete", "session", session.ID)
 
 	// Stage 2: Vector Match
 	if err := h.doVectorMatchResponder(session); err != nil {
 		h.logger.Error("vector match failed", "error", err)
-		session.Handshake.Transition(proto.EventMatchBelowThreshold)
+		h.transition(session, proto.EventMatchBelowThreshold)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -237,14 +237,14 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventMatchAboveThreshold)
+	h.transition(session, proto.EventMatchAboveThreshold)
 	h.emitStateChange(session)
 	h.logger.Info("responder vector match complete", "session", session.ID)
 
 	// Stage 3: Deal Breakers
 	if err := h.doDealBreakersResponder(session); err != nil {
 		h.logger.Error("deal breakers failed", "error", err)
-		session.Handshake.Transition(proto.EventDealBreakersMismatch)
+		h.transition(session, proto.EventDealBreakersMismatch)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -253,19 +253,19 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventDealBreakersMatch)
+	h.transition(session, proto.EventDealBreakersMatch)
 	h.emitStateChange(session)
 	h.logger.Info("responder deal breakers complete", "session", session.ID)
 
 	// Skip HumanChat (synthetic chat) for now - go directly to Unmask
 	// In production, there would be an EventChatApproval transition here after chat
-	session.Handshake.Transition(proto.EventChatApproval) // Skip to Unmask state
+	h.transition(session, proto.EventChatApproval) // Skip to Unmask state
 	h.emitStateChange(session)
 
 	// Stage 5: Unmask
 	if err := h.doUnmaskResponder(session); err != nil {
 		h.logger.Error("unmask failed", "error", err)
-		session.Handshake.Transition(proto.EventUnmaskRejection)
+		h.transition(session, proto.EventUnmaskRejection)
 		h.manager.EmitEvent(Event{
 			SessionID: session.ID,
 			EventType: "failed",
@@ -274,7 +274,7 @@ func (h *StreamHandler) runResponder(session *Session) {
 		})
 		return
 	}
-	session.Handshake.Transition(proto.EventMutualApproval)
+	h.transition(session, proto.EventMutualApproval)
 	h.emitStateChange(session)
 	h.logger.Info("responder unmask complete", "session", session.ID)
 
@@ -294,7 +294,9 @@ func (h *StreamHandler) sendReject(s network.Stream, reason string) {
 		Payload:   []byte(reason),
 		Timestamp: time.Now().Unix(),
 	}
-	WriteEnvelope(s, env)
+	if err := WriteEnvelope(s, env); err != nil {
+		h.logger.Warn("failed to send reject message", "error", err, "reason", reason)
+	}
 }
 
 // emitStateChange emits a state change event.
@@ -308,9 +310,25 @@ func (h *StreamHandler) emitStateChange(session *Session) {
 	})
 }
 
+// transition performs a state transition and logs any errors.
+// This is a helper to ensure transition errors are never silently ignored.
+func (h *StreamHandler) transition(session *Session, event proto.Event) {
+	if err := session.Handshake.Transition(event); err != nil {
+		h.logger.Error("state transition failed",
+			"session", session.ID,
+			"event", event.String(),
+			"current_state", session.State().String(),
+			"error", err,
+		)
+	}
+}
+
 // doAttestationInitiator performs the initiator side of attestation.
 // The initiator sends a hashcash challenge and verifies the response.
 func (h *StreamHandler) doAttestationInitiator(session *Session) error {
+	// Get thread-safe copy of session stream
+	stream := session.GetStream()
+
 	// Get our peer ID
 	var myPeerID string
 	if h.manager.host != nil {
@@ -350,14 +368,14 @@ func (h *StreamHandler) doAttestationInitiator(session *Session) error {
 		"challenge", challenge.String(),
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send attestation request: %w", err)
 	}
 
 	session.UpdateActivity()
 
 	// Read response
-	respEnv, err := ReadEnvelope(session.Stream)
+	respEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read attestation response: %w", err)
 	}
@@ -422,8 +440,11 @@ func (h *StreamHandler) doAttestationInitiator(session *Session) error {
 // doAttestationResponder performs the responder side of attestation.
 // The responder receives a hashcash challenge, solves it, and sends the solution.
 func (h *StreamHandler) doAttestationResponder(session *Session) error {
+	// Get thread-safe copy of session stream
+	stream := session.GetStream()
+
 	// Read request
-	reqEnv, err := ReadEnvelope(session.Stream)
+	reqEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read attestation request: %w", err)
 	}
@@ -449,27 +470,27 @@ func (h *StreamHandler) doAttestationResponder(session *Session) error {
 
 	// Verify version compatibility
 	if reqPayload.Version != Version {
-		h.sendRejectWithReason(session.Stream, "version mismatch", "attestation")
+		h.sendRejectWithReason(stream, "version mismatch", "attestation")
 		return fmt.Errorf("version mismatch: expected %s, got %s", Version, reqPayload.Version)
 	}
 
 	// Parse the challenge
 	challenge, err := hashcash.ParseChallenge(reqPayload.Challenge)
 	if err != nil {
-		h.sendRejectWithReason(session.Stream, "invalid challenge format", "attestation")
+		h.sendRejectWithReason(stream, "invalid challenge format", "attestation")
 		return fmt.Errorf("failed to parse challenge: %w", err)
 	}
 
 	// Check if challenge has expired
 	if challenge.IsExpired() {
-		h.sendRejectWithReason(session.Stream, "challenge expired", "attestation")
+		h.sendRejectWithReason(stream, "challenge expired", "attestation")
 		return fmt.Errorf("challenge has expired")
 	}
 
 	// Solve the challenge
 	solution, err := hashcash.Solve(challenge)
 	if err != nil {
-		h.sendRejectWithReason(session.Stream, "failed to solve challenge", "attestation")
+		h.sendRejectWithReason(stream, "failed to solve challenge", "attestation")
 		return fmt.Errorf("failed to solve challenge: %w", err)
 	}
 
@@ -505,7 +526,7 @@ func (h *StreamHandler) doAttestationResponder(session *Session) error {
 		"solution_counter", solution.Counter,
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send attestation response: %w", err)
 	}
 
@@ -521,8 +542,12 @@ func (h *StreamHandler) doAttestationResponder(session *Session) error {
 // doVectorMatchInitiator performs the initiator side of vector match.
 // The initiator sends their encrypted monad and receives match result.
 func (h *StreamHandler) doVectorMatchInitiator(session *Session) error {
+	// Get thread-safe copies of session data
+	localMonad := session.GetLocalMonad()
+	stream := session.GetStream()
+
 	// Verify we have our monad
-	if len(session.LocalMonad) == 0 {
+	if len(localMonad) == 0 {
 		return fmt.Errorf("local monad not set")
 	}
 
@@ -537,7 +562,7 @@ func (h *StreamHandler) doVectorMatchInitiator(session *Session) error {
 	// Create vector match request payload
 	reqPayload := &pb.VectorMatchRequestPayload{
 		PeerId:         myPeerID,
-		EncryptedMonad: session.LocalMonad, // In production, this would be encrypted
+		EncryptedMonad: localMonad, // In production, this would be encrypted
 	}
 
 	payload, err := googleproto.Marshal(reqPayload)
@@ -554,17 +579,17 @@ func (h *StreamHandler) doVectorMatchInitiator(session *Session) error {
 
 	h.logger.Debug("sending vector match request",
 		"session", session.ID,
-		"monad_size", len(session.LocalMonad),
+		"monad_size", len(localMonad),
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send vector match request: %w", err)
 	}
 
 	session.UpdateActivity()
 
 	// Read response
-	respEnv, err := ReadEnvelope(session.Stream)
+	respEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read vector match response: %w", err)
 	}
@@ -608,13 +633,17 @@ func (h *StreamHandler) doVectorMatchInitiator(session *Session) error {
 // doVectorMatchResponder performs the responder side of vector match.
 // The responder receives peer monad, computes similarity, and sends result.
 func (h *StreamHandler) doVectorMatchResponder(session *Session) error {
+	// Get thread-safe copies of session data
+	localMonad := session.GetLocalMonad()
+	stream := session.GetStream()
+
 	// Verify we have our monad
-	if len(session.LocalMonad) == 0 {
+	if len(localMonad) == 0 {
 		return fmt.Errorf("local monad not set")
 	}
 
 	// Read request
-	reqEnv, err := ReadEnvelope(session.Stream)
+	reqEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read vector match request: %w", err)
 	}
@@ -639,16 +668,17 @@ func (h *StreamHandler) doVectorMatchResponder(session *Session) error {
 	)
 
 	// Store peer's monad for later use (will be cleaned up when session ends)
-	session.PeerMonad = reqPayload.EncryptedMonad
+	session.SetPeerMonad(reqPayload.EncryptedMonad)
+	peerMonad := reqPayload.EncryptedMonad
 
 	// Get threshold from the handshake (which got it from manager config)
 	threshold := session.Handshake.Threshold()
 
 	// Compute match using MockTEE
 	// In production, this would run inside SGX
-	matched, err := tee.ComputeMatch(session.LocalMonad, session.PeerMonad, threshold)
+	matched, err := tee.ComputeMatch(localMonad, peerMonad, threshold)
 	if err != nil {
-		h.sendRejectWithReason(session.Stream, "failed to compute match", "vector_match")
+		h.sendRejectWithReason(stream, "failed to compute match", "vector_match")
 		return fmt.Errorf("failed to compute match: %w", err)
 	}
 
@@ -684,7 +714,7 @@ func (h *StreamHandler) doVectorMatchResponder(session *Session) error {
 		"matched", matched,
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send vector match response: %w", err)
 	}
 
@@ -705,14 +735,18 @@ func (h *StreamHandler) doVectorMatchResponder(session *Session) error {
 // doDealBreakersInitiator performs the initiator side of deal breakers.
 // The initiator sends their questions+answers and receives peer's answers.
 func (h *StreamHandler) doDealBreakersInitiator(session *Session) error {
+	// Get thread-safe copies of session data
+	dealBreakerConfig := session.GetDealBreakerConfig()
+	stream := session.GetStream()
+
 	// Verify deal breaker config is set
-	if session.DealBreakerConfig == nil {
+	if dealBreakerConfig == nil {
 		return fmt.Errorf("deal breaker config not set")
 	}
 
 	// Create deal breaker request payload with our questions and answers
-	questions := make([]*pb.DealBreakerQuestion, len(session.DealBreakerConfig.Questions))
-	for i, q := range session.DealBreakerConfig.Questions {
+	questions := make([]*pb.DealBreakerQuestion, len(dealBreakerConfig.Questions))
+	for i, q := range dealBreakerConfig.Questions {
 		questions[i] = &pb.DealBreakerQuestion{
 			Id:       q.ID,
 			Question: q.Question,
@@ -741,14 +775,14 @@ func (h *StreamHandler) doDealBreakersInitiator(session *Session) error {
 		"questions", len(questions),
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send deal breaker request: %w", err)
 	}
 
 	session.UpdateActivity()
 
 	// Read response
-	respEnv, err := ReadEnvelope(session.Stream)
+	respEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read deal breaker response: %w", err)
 	}
@@ -792,7 +826,7 @@ func (h *StreamHandler) doDealBreakersInitiator(session *Session) error {
 		peerAnswers[a.QuestionId] = a.Answer
 	}
 
-	if !checkCompatibility(session.DealBreakerConfig.Questions, peerAnswers) {
+	if !checkCompatibility(dealBreakerConfig.Questions, peerAnswers) {
 		return fmt.Errorf("deal breakers failed: incompatible")
 	}
 
@@ -802,13 +836,17 @@ func (h *StreamHandler) doDealBreakersInitiator(session *Session) error {
 // doDealBreakersResponder performs the responder side of deal breakers.
 // The responder receives peer's questions+answers and sends their own answers.
 func (h *StreamHandler) doDealBreakersResponder(session *Session) error {
+	// Get thread-safe copies of session data
+	dealBreakerConfig := session.GetDealBreakerConfig()
+	stream := session.GetStream()
+
 	// Verify deal breaker config is set
-	if session.DealBreakerConfig == nil {
+	if dealBreakerConfig == nil {
 		return fmt.Errorf("deal breaker config not set")
 	}
 
 	// Read request
-	reqEnv, err := ReadEnvelope(session.Stream)
+	reqEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read deal breaker request: %w", err)
 	}
@@ -838,11 +876,11 @@ func (h *StreamHandler) doDealBreakersResponder(session *Session) error {
 	}
 
 	// Check compatibility: do peer's answers meet our requirements?
-	compatible := checkCompatibility(session.DealBreakerConfig.Questions, peerAnswers)
+	compatible := checkCompatibility(dealBreakerConfig.Questions, peerAnswers)
 
 	// Create our answers to send back
-	answers := make([]*pb.DealBreakerAnswer, len(session.DealBreakerConfig.Questions))
-	for i, q := range session.DealBreakerConfig.Questions {
+	answers := make([]*pb.DealBreakerAnswer, len(dealBreakerConfig.Questions))
+	for i, q := range dealBreakerConfig.Questions {
 		answers[i] = &pb.DealBreakerAnswer{
 			QuestionId: q.ID,
 			Answer:     q.MyAnswer,
@@ -873,7 +911,7 @@ func (h *StreamHandler) doDealBreakersResponder(session *Session) error {
 		"compatible", compatible,
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send deal breaker response: %w", err)
 	}
 
@@ -927,7 +965,9 @@ func (h *StreamHandler) sendRejectWithReason(s network.Stream, reason, stage str
 		Payload:   payload,
 		Timestamp: time.Now().Unix(),
 	}
-	WriteEnvelope(s, env)
+	if err := WriteEnvelope(s, env); err != nil {
+		h.logger.Warn("failed to send reject message", "error", err, "reason", reason, "stage", stage)
+	}
 }
 
 // ===========================================================================
@@ -937,8 +977,12 @@ func (h *StreamHandler) sendRejectWithReason(s network.Stream, reason, stage str
 // doUnmaskInitiator performs the initiator side of unmask.
 // The initiator waits for human approval, then sends UNMASK_REQUEST and receives UNMASK_RESPONSE.
 func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
+	// Get thread-safe copies of session data
+	identityPayload := session.GetIdentityPayload()
+	stream := session.GetStream()
+
 	// Verify identity payload is set
-	if session.IdentityPayload == nil {
+	if identityPayload == nil {
 		return fmt.Errorf("identity payload not set")
 	}
 
@@ -951,10 +995,19 @@ func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
 		PeerID:    session.PeerID.String(),
 	})
 
-	// 2. Wait for human approval (blocking)
-	if !session.WaitForApproval() {
+	// 2. Wait for human approval (blocking, with timeout)
+	// Use a reasonable timeout (e.g., 5 minutes) for human approval
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	approved, err := session.WaitForApproval(ctx)
+	if err != nil {
+		h.sendRejectWithReason(stream, "approval timeout", "unmask")
+		return fmt.Errorf("approval timeout: %w", err)
+	}
+	if !approved {
 		// Human rejected - send REJECT
-		h.sendRejectWithReason(session.Stream, "user rejected", "unmask")
+		h.sendRejectWithReason(stream, "user rejected", "unmask")
 		return fmt.Errorf("user rejected unmask")
 	}
 
@@ -978,14 +1031,14 @@ func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
 
 	h.logger.Debug("sending unmask request", "session", session.ID)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send unmask request: %w", err)
 	}
 
 	session.UpdateActivity()
 
 	// 4. Read UNMASK_RESPONSE from peer
-	respEnv, err := ReadEnvelope(session.Stream)
+	respEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read unmask response: %w", err)
 	}
@@ -1023,14 +1076,12 @@ func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
 	}
 
 	// 6. Store peer's identity
-	session.mu.Lock()
-	session.PeerIdentity = respPayload.Identity
-	session.mu.Unlock()
+	session.SetPeerIdentity(respPayload.Identity)
 
 	// 7. Send our identity back to peer (completing the bidirectional exchange)
 	ourRespPayload := &pb.UnmaskResponsePayload{
 		Accepted: true,
-		Identity: session.IdentityPayload,
+		Identity: identityPayload,
 	}
 
 	ourPayload, err := googleproto.Marshal(ourRespPayload)
@@ -1046,7 +1097,7 @@ func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
 
 	h.logger.Debug("sending our unmask response", "session", session.ID)
 
-	if err := WriteEnvelope(session.Stream, ourEnv); err != nil {
+	if err := WriteEnvelope(stream, ourEnv); err != nil {
 		return fmt.Errorf("failed to send our unmask response: %w", err)
 	}
 
@@ -1063,13 +1114,17 @@ func (h *StreamHandler) doUnmaskInitiator(session *Session) error {
 // doUnmaskResponder performs the responder side of unmask.
 // The responder reads UNMASK_REQUEST, waits for human approval, then sends UNMASK_RESPONSE.
 func (h *StreamHandler) doUnmaskResponder(session *Session) error {
+	// Get thread-safe copies of session data
+	identityPayload := session.GetIdentityPayload()
+	stream := session.GetStream()
+
 	// Verify identity payload is set
-	if session.IdentityPayload == nil {
+	if identityPayload == nil {
 		return fmt.Errorf("identity payload not set")
 	}
 
 	// 1. Read UNMASK_REQUEST from peer
-	reqEnv, err := ReadEnvelope(session.Stream)
+	reqEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read unmask request: %w", err)
 	}
@@ -1110,8 +1165,16 @@ func (h *StreamHandler) doUnmaskResponder(session *Session) error {
 		PeerID:    session.PeerID.String(),
 	})
 
-	// 3. Wait for human approval (blocking)
-	approved := session.WaitForApproval()
+	// 3. Wait for human approval (blocking, with timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	approved, err := session.WaitForApproval(ctx)
+	if err != nil {
+		session.ClearPendingApproval()
+		h.sendRejectWithReason(stream, "approval timeout", "unmask")
+		return fmt.Errorf("approval timeout: %w", err)
+	}
 	session.ClearPendingApproval()
 
 	// 4. Send UNMASK_RESPONSE
@@ -1119,7 +1182,7 @@ func (h *StreamHandler) doUnmaskResponder(session *Session) error {
 	if approved {
 		respPayload = &pb.UnmaskResponsePayload{
 			Accepted: true,
-			Identity: session.IdentityPayload,
+			Identity: identityPayload,
 		}
 	} else {
 		respPayload = &pb.UnmaskResponsePayload{
@@ -1143,7 +1206,7 @@ func (h *StreamHandler) doUnmaskResponder(session *Session) error {
 		"accepted", approved,
 	)
 
-	if err := WriteEnvelope(session.Stream, env); err != nil {
+	if err := WriteEnvelope(stream, env); err != nil {
 		return fmt.Errorf("failed to send unmask response: %w", err)
 	}
 
@@ -1155,7 +1218,7 @@ func (h *StreamHandler) doUnmaskResponder(session *Session) error {
 	}
 
 	// 5. Read initiator's identity response
-	peerRespEnv, err := ReadEnvelope(session.Stream)
+	peerRespEnv, err := ReadEnvelope(stream)
 	if err != nil {
 		return fmt.Errorf("failed to read peer identity response: %w", err)
 	}
@@ -1179,9 +1242,7 @@ func (h *StreamHandler) doUnmaskResponder(session *Session) error {
 	)
 
 	// Store peer's identity
-	session.mu.Lock()
-	session.PeerIdentity = peerRespPayload.Identity
-	session.mu.Unlock()
+	session.SetPeerIdentity(peerRespPayload.Identity)
 
 	h.logger.Info("unmask complete",
 		"session", session.ID,

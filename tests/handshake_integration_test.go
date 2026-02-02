@@ -284,11 +284,11 @@ func TestHandshake_Session_ApprovalFlow(t *testing.T) {
 	// Set pending approval
 	session.SetPendingApproval("unmask")
 
-	if !session.PendingApproval {
+	if !session.IsPendingApproval() {
 		t.Error("session should be pending approval")
 	}
-	if session.PendingApprovalType != "unmask" {
-		t.Errorf("expected approval type 'unmask', got '%s'", session.PendingApprovalType)
+	if session.GetPendingApprovalType() != "unmask" {
+		t.Errorf("expected approval type 'unmask', got '%s'", session.GetPendingApprovalType())
 	}
 
 	// Signal approval in background
@@ -297,8 +297,12 @@ func TestHandshake_Session_ApprovalFlow(t *testing.T) {
 		session.SignalApproval(true)
 	}()
 
-	// Wait for approval
-	approved := session.WaitForApproval()
+	// Wait for approval with context
+	ctx := context.Background()
+	approved, err := session.WaitForApproval(ctx)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
 	if !approved {
 		t.Error("expected approval to be true")
 	}
@@ -314,11 +318,11 @@ func TestHandshake_Session_Cleanup(t *testing.T) {
 	session := mgr.CreateSession(fakePeerID, proto.RoleInitiator)
 
 	// Set sensitive data
-	session.LocalMonad = []byte{1, 2, 3, 4, 5}
-	session.PeerMonad = []byte{6, 7, 8, 9, 10}
+	session.SetLocalMonad([]byte{1, 2, 3, 4, 5})
+	session.SetPeerMonad([]byte{6, 7, 8, 9, 10})
 
 	// Verify data is present
-	if len(session.LocalMonad) != 5 {
+	if len(session.GetLocalMonad()) != 5 {
 		t.Error("LocalMonad should have data before cleanup")
 	}
 
@@ -326,10 +330,10 @@ func TestHandshake_Session_Cleanup(t *testing.T) {
 	session.Cleanup()
 
 	// Verify data is zeroed
-	if session.LocalMonad != nil {
+	if session.GetLocalMonad() != nil {
 		t.Error("LocalMonad should be nil after cleanup")
 	}
-	if session.PeerMonad != nil {
+	if session.GetPeerMonad() != nil {
 		t.Error("PeerMonad should be nil after cleanup")
 	}
 }
@@ -722,9 +726,9 @@ func TestHandshake_Integration_FullHandshakeSuccess(t *testing.T) {
 			for _, s := range sessions {
 				if !session1Configured.Load() {
 					session1 = s
-					s.LocalMonad = monad1
-					s.DealBreakerConfig = db1
-					s.IdentityPayload = identity1
+					s.SetLocalMonad(monad1)
+					s.SetDealBreakerConfig(db1)
+					s.SetIdentityPayload(identity1)
 					session1Configured.Store(true)
 				}
 			}
@@ -738,9 +742,9 @@ func TestHandshake_Integration_FullHandshakeSuccess(t *testing.T) {
 			for _, s := range sessions {
 				if !session2Configured.Load() {
 					session2 = s
-					s.LocalMonad = monad2
-					s.DealBreakerConfig = db2
-					s.IdentityPayload = identity2
+					s.SetLocalMonad(monad2)
+					s.SetDealBreakerConfig(db2)
+					s.SetIdentityPayload(identity2)
 					session2Configured.Store(true)
 				}
 			}
@@ -773,7 +777,7 @@ func TestHandshake_Integration_FullHandshakeSuccess(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			if session1 != nil && session1.PendingApproval {
+			if session1 != nil && session1.IsPendingApproval() {
 				session1.SignalApproval(true)
 				return
 			}
@@ -784,7 +788,7 @@ func TestHandshake_Integration_FullHandshakeSuccess(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			if session2 != nil && session2.PendingApproval {
+			if session2 != nil && session2.IsPendingApproval() {
 				session2.SignalApproval(true)
 				return
 			}
@@ -878,9 +882,9 @@ func TestHandshake_Integration_VectorMatchFailure(t *testing.T) {
 			for _, s := range sessions {
 				if !session1Configured.Load() {
 					session1 = s
-					s.LocalMonad = monad1 // Orthogonal vector
-					s.DealBreakerConfig = db1
-					s.IdentityPayload = identity1
+					s.SetLocalMonad(monad1) // Orthogonal vector
+					s.SetDealBreakerConfig(db1)
+					s.SetIdentityPayload(identity1)
 					session1Configured.Store(true)
 				}
 			}
@@ -894,9 +898,9 @@ func TestHandshake_Integration_VectorMatchFailure(t *testing.T) {
 			for _, s := range sessions {
 				if !session2Configured.Load() {
 					session2 = s
-					s.LocalMonad = monad2 // Orthogonal vector
-					s.DealBreakerConfig = db2
-					s.IdentityPayload = identity2
+					s.SetLocalMonad(monad2) // Orthogonal vector
+					s.SetDealBreakerConfig(db2)
+					s.SetIdentityPayload(identity2)
 					session2Configured.Store(true)
 				}
 			}
@@ -1010,9 +1014,9 @@ func TestHandshake_Integration_DealBreakerMismatch(t *testing.T) {
 			for _, s := range sessions {
 				if !session1Configured.Load() {
 					session1 = s
-					s.LocalMonad = monad1
-					s.DealBreakerConfig = db1 // Incompatible deal breakers
-					s.IdentityPayload = identity1
+					s.SetLocalMonad(monad1)
+					s.SetDealBreakerConfig(db1) // Incompatible deal breakers
+					s.SetIdentityPayload(identity1)
 					session1Configured.Store(true)
 				}
 			}
@@ -1026,9 +1030,9 @@ func TestHandshake_Integration_DealBreakerMismatch(t *testing.T) {
 			for _, s := range sessions {
 				if !session2Configured.Load() {
 					session2 = s
-					s.LocalMonad = monad2
-					s.DealBreakerConfig = db2 // Incompatible deal breakers
-					s.IdentityPayload = identity2
+					s.SetLocalMonad(monad2)
+					s.SetDealBreakerConfig(db2) // Incompatible deal breakers
+					s.SetIdentityPayload(identity2)
 					session2Configured.Store(true)
 				}
 			}
@@ -1140,9 +1144,9 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 			for _, s := range sessions {
 				if !session1Configured.Load() {
 					session1 = s
-					s.LocalMonad = monad1
-					s.DealBreakerConfig = db1
-					s.IdentityPayload = identity1
+					s.SetLocalMonad(monad1)
+					s.SetDealBreakerConfig(db1)
+					s.SetIdentityPayload(identity1)
 					session1Configured.Store(true)
 				}
 			}
@@ -1156,9 +1160,9 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 			for _, s := range sessions {
 				if !session2Configured.Load() {
 					session2 = s
-					s.LocalMonad = monad2
-					s.DealBreakerConfig = db2
-					s.IdentityPayload = identity2
+					s.SetLocalMonad(monad2)
+					s.SetDealBreakerConfig(db2)
+					s.SetIdentityPayload(identity2)
 					session2Configured.Store(true)
 				}
 			}
@@ -1191,7 +1195,7 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			if session1 != nil && session1.PendingApproval {
+			if session1 != nil && session1.IsPendingApproval() {
 				t.Log("host1 approving unmask")
 				session1.SignalApproval(true) // Approve
 				return
@@ -1203,7 +1207,7 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 1000; i++ {
-			if session2 != nil && session2.PendingApproval {
+			if session2 != nil && session2.IsPendingApproval() {
 				t.Log("host2 REJECTING unmask")
 				session2.SignalApproval(false) // REJECT!
 				return
@@ -1233,10 +1237,10 @@ func TestHandshake_Integration_UnmaskRejection(t *testing.T) {
 			}
 		case <-timeout:
 			if session1 != nil {
-				t.Logf("session1 state: %s, pending: %v", session1.State(), session1.PendingApproval)
+				t.Logf("session1 state: %s, pending: %v", session1.State(), session1.IsPendingApproval())
 			}
 			if session2 != nil {
-				t.Logf("session2 state: %s, pending: %v", session2.State(), session2.PendingApproval)
+				t.Logf("session2 state: %s, pending: %v", session2.State(), session2.IsPendingApproval())
 			}
 			t.Fatal("timeout waiting for handshake failure")
 		}

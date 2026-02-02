@@ -2,6 +2,8 @@
 package handshake
 
 import (
+	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -11,6 +13,9 @@ import (
 	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/pkg/protocol"
 )
+
+// ErrApprovalTimeout is returned when WaitForApproval times out.
+var ErrApprovalTimeout = errors.New("approval timeout")
 
 // DealBreakerConfig holds deal-breaker questions and their required answers.
 type DealBreakerConfig struct {
@@ -88,6 +93,45 @@ func (s *Session) Cleanup() {
 	}
 	s.PeerMonad = nil
 
+	// Zero identity payloads (security: zero-persistence constraint)
+	if s.IdentityPayload != nil {
+		// Zero the protobuf fields containing sensitive data
+		s.IdentityPayload.DisplayName = ""
+		s.IdentityPayload.Email = ""
+		s.IdentityPayload.SignalNumber = ""
+		s.IdentityPayload.MatrixId = ""
+		s.IdentityPayload.PgpFingerprint = ""
+		// Zero byte slices
+		for i := range s.IdentityPayload.PgpPublicKey {
+			s.IdentityPayload.PgpPublicKey[i] = 0
+		}
+		s.IdentityPayload.PgpPublicKey = nil
+		for i := range s.IdentityPayload.ContactSignature {
+			s.IdentityPayload.ContactSignature[i] = 0
+		}
+		s.IdentityPayload.ContactSignature = nil
+		s.IdentityPayload = nil
+	}
+
+	if s.PeerIdentity != nil {
+		// Zero the protobuf fields containing sensitive data
+		s.PeerIdentity.DisplayName = ""
+		s.PeerIdentity.Email = ""
+		s.PeerIdentity.SignalNumber = ""
+		s.PeerIdentity.MatrixId = ""
+		s.PeerIdentity.PgpFingerprint = ""
+		// Zero byte slices
+		for i := range s.PeerIdentity.PgpPublicKey {
+			s.PeerIdentity.PgpPublicKey[i] = 0
+		}
+		s.PeerIdentity.PgpPublicKey = nil
+		for i := range s.PeerIdentity.ContactSignature {
+			s.PeerIdentity.ContactSignature[i] = 0
+		}
+		s.PeerIdentity.ContactSignature = nil
+		s.PeerIdentity = nil
+	}
+
 	// Close stream if open
 	if s.Stream != nil {
 		s.Stream.Close()
@@ -126,6 +170,20 @@ func (s *Session) ClearPendingApproval() {
 	s.PendingApprovalType = ""
 }
 
+// IsPendingApproval returns true if the session is waiting for human approval (thread-safe).
+func (s *Session) IsPendingApproval() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.PendingApproval
+}
+
+// GetPendingApprovalType returns the type of pending approval (thread-safe).
+func (s *Session) GetPendingApprovalType() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.PendingApprovalType
+}
+
 // UpdateActivity updates the last activity timestamp.
 func (s *Session) UpdateActivity() {
 	s.mu.Lock()
@@ -133,18 +191,120 @@ func (s *Session) UpdateActivity() {
 	s.LastActivity = time.Now()
 }
 
-// WaitForApproval blocks until human approval or rejection is signaled.
-// Returns true if approved, false if rejected.
-func (s *Session) WaitForApproval() bool {
-	return <-s.approvalCh
+// WaitForApproval blocks until human approval or rejection is signaled, or context is cancelled.
+// Returns true if approved, false if rejected or context cancelled.
+// Returns ErrApprovalTimeout if context is cancelled before approval is received.
+func (s *Session) WaitForApproval(ctx context.Context) (bool, error) {
+	select {
+	case approved := <-s.approvalCh:
+		return approved, nil
+	case <-ctx.Done():
+		return false, ErrApprovalTimeout
+	}
 }
 
 // SignalApproval signals approval (true) or rejection (false) to unblock WaitForApproval.
-// This is non-blocking; if the channel is full, the signal is dropped.
-func (s *Session) SignalApproval(approved bool) {
+// This is non-blocking; if the channel is full, the signal is dropped and logged.
+func (s *Session) SignalApproval(approved bool) bool {
 	select {
 	case s.approvalCh <- approved:
+		return true
 	default:
 		// Channel full, signal already pending
+		return false
 	}
+}
+
+// SetLocalMonad sets the local monad (thread-safe).
+func (s *Session) SetLocalMonad(monad []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.LocalMonad = monad
+}
+
+// GetLocalMonad returns a copy of the local monad (thread-safe).
+func (s *Session) GetLocalMonad() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.LocalMonad == nil {
+		return nil
+	}
+	result := make([]byte, len(s.LocalMonad))
+	copy(result, s.LocalMonad)
+	return result
+}
+
+// SetPeerMonad sets the peer monad (thread-safe).
+func (s *Session) SetPeerMonad(monad []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PeerMonad = monad
+}
+
+// GetPeerMonad returns a copy of the peer monad (thread-safe).
+func (s *Session) GetPeerMonad() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.PeerMonad == nil {
+		return nil
+	}
+	result := make([]byte, len(s.PeerMonad))
+	copy(result, s.PeerMonad)
+	return result
+}
+
+// SetDealBreakerConfig sets the deal breaker configuration (thread-safe).
+func (s *Session) SetDealBreakerConfig(cfg *DealBreakerConfig) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.DealBreakerConfig = cfg
+}
+
+// GetDealBreakerConfig returns the deal breaker configuration (thread-safe).
+func (s *Session) GetDealBreakerConfig() *DealBreakerConfig {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.DealBreakerConfig
+}
+
+// SetIdentityPayload sets the identity payload (thread-safe).
+func (s *Session) SetIdentityPayload(payload *pb.IdentityPayload) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.IdentityPayload = payload
+}
+
+// GetIdentityPayload returns the identity payload (thread-safe).
+func (s *Session) GetIdentityPayload() *pb.IdentityPayload {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.IdentityPayload
+}
+
+// SetPeerIdentity sets the peer identity (thread-safe).
+func (s *Session) SetPeerIdentity(payload *pb.IdentityPayload) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.PeerIdentity = payload
+}
+
+// GetPeerIdentity returns the peer identity (thread-safe).
+func (s *Session) GetPeerIdentity() *pb.IdentityPayload {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.PeerIdentity
+}
+
+// SetStream sets the network stream (thread-safe).
+func (s *Session) SetStream(stream network.Stream) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.Stream = stream
+}
+
+// GetStream returns the network stream (thread-safe).
+func (s *Session) GetStream() network.Stream {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Stream
 }
