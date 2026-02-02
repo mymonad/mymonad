@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package mymonad.discovery;
+
+option go_package = "github.com/mymonad/mymonad/api/proto";
+
+// DiscoveryCommit is sent first by both parties in the LSH discovery protocol.
+// This implements a commitment scheme to prevent cheating where a peer could
+// adjust their signature after seeing the other peer's signature.
+message DiscoveryCommit {
+  // SHA-256(signature || salt), 32 bytes
+  // The commitment hides the signature until both parties have committed
+  bytes commitment = 1;
+
+  // Unix milliseconds, for replay protection (±5s window)
+  // Prevents replay attacks by ensuring commits are fresh
+  int64 timestamp = 2;
+
+  // Sender's libp2p peer ID
+  // Identifies which peer sent this commit
+  bytes peer_id = 3;
+}
+
+// DiscoveryReveal is sent after both commits are exchanged.
+// Reveals the actual LSH signature and salt, allowing verification
+// that the commitment was honest.
+message DiscoveryReveal {
+  // Full LSH signature (N bits, typically 256)
+  // This is the locality-sensitive hash of the peer's monad
+  bytes signature = 1;
+
+  // Random salt used in commitment (minimum 16 bytes, high-entropy)
+  // Must match the salt used when computing the commitment
+  bytes salt = 2;
+}
+
+// DiscoveryReject indicates protocol failure during LSH discovery.
+message DiscoveryReject {
+  // Reason for rejection. Must be one of:
+  // - "commitment_mismatch": The revealed signature/salt doesn't match the commitment
+  // - "stale_timestamp": The commit timestamp is outside the ±5s validity window
+  // - "invalid_salt": The salt is too short (< 16 bytes) or not high-entropy
+  // - "malformed_signature": The signature is invalid or wrong length
+  string reason = 1;
+}
