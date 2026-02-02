@@ -3,6 +3,8 @@
 package chat
 
 import (
+	"encoding/hex"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -93,6 +95,70 @@ func zeroFill(b []byte) {
 	for i := range b {
 		b[i] = 0
 	}
+}
+
+// retryPending attempts to resend unacknowledged messages.
+// It increments the retry counter for each pending message and resends it.
+// If MaxRetries is exceeded for any message, the session is cleaned up.
+func (s *ChatSession) retryPending() {
+	s.mu.Lock()
+
+	// Check if session is still open
+	if !s.isOpen {
+		s.mu.Unlock()
+		return
+	}
+
+	// Iterate over pending messages
+	for id, pending := range s.pendingAcks {
+		pending.Retries++
+
+		if pending.Retries > MaxRetries {
+			slog.Error("max retries exceeded, cleaning up session",
+				"session_id", hex.EncodeToString(s.sessionID),
+				"message_id", id,
+			)
+			// Release lock before cleanup to avoid deadlock
+			s.mu.Unlock()
+			s.Cleanup()
+			return
+		}
+
+		// Resend message using sendEncrypted
+		if err := s.sendEncryptedLocked(pending.ID, pending.Plaintext); err != nil {
+			slog.Warn("retry failed", "message_id", id, "error", err)
+		}
+	}
+
+	s.mu.Unlock()
+}
+
+// sendEncryptedLocked encrypts and sends a message. Must be called while holding the lock.
+// This is used by retryPending to resend messages.
+func (s *ChatSession) sendEncryptedLocked(messageID []byte, plaintextBytes []byte) error {
+	// Encrypt using chat key
+	ciphertext, err := Encrypt(s.chatKey, plaintextBytes)
+	if err != nil {
+		return err
+	}
+
+	// Extract nonce from ciphertext (first 12 bytes)
+	nonce := ciphertext[:NonceLength]
+	encryptedPayload := ciphertext[NonceLength:]
+
+	// Build and send envelope
+	envelope := &pb.ChatEnvelope{
+		Payload: &pb.ChatEnvelope_Message{
+			Message: &pb.ChatMessage{
+				MessageId:  messageID,
+				Ciphertext: encryptedPayload,
+				Nonce:      nonce,
+				Timestamp:  time.Now().UnixMilli(),
+			},
+		},
+	}
+
+	return s.writeEnvelope(envelope)
 }
 
 // Cleanup securely wipes all sensitive data and closes the session.
