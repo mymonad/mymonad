@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package mymonad.chat;
+
+option go_package = "github.com/mymonad/mymonad/api/proto";
+
+// ChatMessage is an encrypted text message sent during Stage 4 of the handshake.
+// The ciphertext contains a serialized ChatPlaintext encrypted with AES-256-GCM
+// using the session key derived during the handshake.
+message ChatMessage {
+  // Random UUID (16 bytes) for ACK correlation
+  // Allows the sender to match acknowledgments to sent messages
+  bytes message_id = 1;
+
+  // AES-256-GCM encrypted payload containing serialized ChatPlaintext
+  // Encrypted with the session key established during handshake
+  bytes ciphertext = 2;
+
+  // GCM nonce (12 bytes), must be unique per message
+  // Never reuse a nonce with the same key
+  bytes nonce = 3;
+
+  // Unix milliseconds when the message was sent
+  // Used for ordering messages in the UI
+  int64 timestamp = 4;
+}
+
+// ChatAck confirms successful receipt and decryption of a ChatMessage.
+// The message_hash proves the recipient successfully decrypted the message.
+message ChatAck {
+  // Echoes the message_id being acknowledged
+  // Allows sender to correlate ACKs to sent messages
+  bytes message_id = 1;
+
+  // SHA-256(plaintext) to confirm correct decryption
+  // Proves the message was decrypted successfully, not just received
+  bytes message_hash = 2;
+}
+
+// ChatTyping indicates the sender's typing status.
+// Used to show "user is typing..." indicators in the UI.
+message ChatTyping {
+  // true = started typing, false = stopped typing
+  // Should be sent when typing starts and after a brief pause
+  bool is_typing = 1;
+}
+
+// ChatEnvelope wraps all chat protocol messages.
+// This allows multiplexing different message types over the same stream.
+message ChatEnvelope {
+  oneof payload {
+    ChatMessage message = 1;
+    ChatAck ack = 2;
+    ChatTyping typing = 3;
+  }
+}
+
+// ChatPlaintext is the decrypted content of ChatMessage.ciphertext.
+// This message is serialized and encrypted, never sent in the clear.
+message ChatPlaintext {
+  // UTF-8 message content, maximum 4096 bytes
+  // Longer messages should be split by the sender
+  string text = 1;
+
+  // Sender's local timestamp (Unix milliseconds)
+  // May differ from ChatMessage.timestamp due to network delay
+  int64 sent_at = 2;
+}
