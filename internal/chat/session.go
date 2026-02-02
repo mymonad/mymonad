@@ -8,6 +8,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	pb "github.com/mymonad/mymonad/api/proto"
 )
 
 // Session-related constants.
@@ -62,6 +63,11 @@ type ChatSession struct {
 	onTyping    func(bool)
 	onDelivered func(messageID []byte)
 	onCleanup   func() // Notify parent service
+
+	// writeEnvelope is a function to send a ChatEnvelope over the network.
+	// This is injected to allow testing without actual network streams.
+	// In production, this wraps protobuf marshaling and stream writing.
+	writeEnvelope func(*pb.ChatEnvelope) error
 }
 
 // StoredMessage represents a message stored in the session buffer.
