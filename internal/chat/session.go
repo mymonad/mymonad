@@ -50,6 +50,7 @@ type ChatSession struct {
 	peerID    peer.ID
 	chatKey   []byte         // Derived via HKDF
 	stream    network.Stream // /mymonad/chat/1.0.0
+	streamRW  StreamRW       // Reader/Writer interface for stream operations (for testing)
 
 	// RAM-only message buffer ([]byte for secure wipe)
 	messages    []*StoredMessage

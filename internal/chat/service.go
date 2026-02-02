@@ -139,21 +139,30 @@ func (cs *ChatService) OpenChat(sessionID []byte) (*ChatSession, error) {
 	}
 
 	// Create the session
+	// Copy sessionID to avoid sharing the underlying array with the caller
+	// This prevents zeroFill during Cleanup from affecting the caller's slice
+	sessionIDCopy := make([]byte, len(sessionID))
+	copy(sessionIDCopy, sessionID)
+
 	session := &ChatSession{
-		sessionID:    sessionID,
+		sessionID:    sessionIDCopy,
 		peerID:       hsSession.GetPeerID(),
 		chatKey:      chatKey,
 		stream:       stream,
+		streamRW:     stream, // network.Stream implements io.Reader and io.Writer
 		messages:     make([]*StoredMessage, 0),
 		pendingAcks:  make(map[string]*PendingMessage),
 		isOpen:       true,
 		lastActivity: time.Now(),
 	}
 
+	// Set up writeEnvelope to use the stream implementation
+	session.writeEnvelope = session.writeEnvelopeImpl
+
 	cs.sessions[sidHex] = session
 
-	// TODO: Start read loop (will be implemented in Task B.9)
-	// go session.readLoop()
+	// Start read loop to handle incoming messages
+	go session.readLoop()
 
 	return session, nil
 }
