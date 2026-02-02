@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,8 @@ import (
 	"github.com/mymonad/mymonad/internal/crypto"
 	"github.com/mymonad/mymonad/internal/discovery"
 	"github.com/mymonad/mymonad/internal/handshake"
+	"github.com/mymonad/mymonad/pkg/lsh"
+	"github.com/mymonad/mymonad/pkg/monad"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -98,6 +101,19 @@ func DefaultDaemonConfig() DaemonConfig {
 	}
 }
 
+// LSH signature generation constants
+const (
+	// LSHNumHashes is the number of hash bits for LSH signatures.
+	// 256 bits provides good accuracy for similarity estimation.
+	LSHNumHashes = 256
+	// LSHDimensions is the expected Monad vector dimensions.
+	// Must match the embedding model dimensions (384 for most models).
+	LSHDimensions = 384
+	// LSHSeed is the deterministic seed for hyperplane generation.
+	// All nodes must use the same seed for compatible signatures.
+	LSHSeed = 42
+)
+
 // Daemon is the agent daemon that participates in the P2P network.
 type Daemon struct {
 	pb.UnimplementedAgentServiceServer
@@ -114,6 +130,12 @@ type Daemon struct {
 	// Handshake protocol components
 	handshakeManager *handshake.Manager
 	handshakeHandler *handshake.StreamHandler
+
+	// LSH discovery components
+	lshDiscovery   *discovery.LSHDiscoveryManager
+	lshGenerator   *lsh.Generator
+	lastMonadHash  [32]byte // Hash of last processed Monad for change detection
+	lastMonadHashMu sync.RWMutex
 
 	// State tracking
 	state   string
@@ -174,6 +196,12 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 	handshakeHandler := handshake.NewStreamHandler(handshakeMgr, logger)
 	handshakeHandler.Register(host.Host())
 
+	// Create LSH discovery manager for similarity-based peer discovery
+	lshDiscoveryMgr := discovery.NewLSHDiscoveryManager(discovery.DefaultLSHDiscoveryConfig())
+
+	// Create LSH signature generator for Monad signatures
+	lshGen := lsh.NewGenerator(LSHNumHashes, LSHDimensions, LSHSeed)
+
 	d := &Daemon{
 		cfg:              cfg,
 		identity:         identity,
@@ -182,6 +210,8 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 		discovery:        discMgr,
 		handshakeManager: handshakeMgr,
 		handshakeHandler: handshakeHandler,
+		lshDiscovery:     lshDiscoveryMgr,
+		lshGenerator:     lshGen,
 		logger:           logger,
 		state:            StateIdle,
 	}
@@ -268,6 +298,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// Start handshake cleanup loop
 	go d.handshakeManager.CleanupLoop(ctx, 5*time.Minute)
 
+	// Start LSH discovery loop for similarity-based peer discovery
+	go d.lshDiscovery.DiscoveryLoop(ctx)
+
 	d.logger.Info("agent daemon running",
 		"peer_id", d.host.ID().String(),
 		"did", d.identity.DID,
@@ -320,6 +353,73 @@ func (d *Daemon) discoverPeers(ctx context.Context) {
 	} else {
 		d.setState(StateIdle)
 	}
+}
+
+// HandleMonadUpdated is called when the Monad is updated to regenerate the LSH signature.
+// It checks if the Monad has changed since the last update and regenerates the signature
+// if necessary. This enables similarity-based peer discovery.
+//
+// The method computes a hash of the Monad to detect changes, avoiding unnecessary
+// signature regeneration for unchanged Monads.
+func (d *Daemon) HandleMonadUpdated(newMonad *monad.Monad) {
+	if newMonad == nil {
+		d.logger.Warn("HandleMonadUpdated called with nil Monad")
+		return
+	}
+
+	// Compute hash of Monad for change detection
+	newHash := d.computeMonadHash(newMonad)
+
+	// Check if signature needs regeneration
+	d.lastMonadHashMu.RLock()
+	needsRegen := newHash != d.lastMonadHash
+	d.lastMonadHashMu.RUnlock()
+
+	if !needsRegen {
+		d.logger.Debug("Monad unchanged, skipping signature regeneration")
+		return
+	}
+
+	// Generate new LSH signature from Monad
+	monadSig := d.lshGenerator.Generate(newMonad)
+	if monadSig == nil {
+		d.logger.Warn("failed to generate LSH signature from Monad",
+			"monad_dimensions", newMonad.Dimensions(),
+			"expected_dimensions", LSHDimensions,
+		)
+		return
+	}
+
+	// Update the LSH discovery manager with the new signature
+	d.lshDiscovery.SetLocalSignature(monadSig.Signature.Bits)
+
+	// Update the stored hash
+	d.lastMonadHashMu.Lock()
+	d.lastMonadHash = newHash
+	d.lastMonadHashMu.Unlock()
+
+	d.logger.Info("LSH signature updated from Monad",
+		"monad_version", newMonad.GetVersion(),
+		"monad_doc_count", newMonad.GetDocCount(),
+		"signature_size", monadSig.Signature.Size,
+	)
+}
+
+// computeMonadHash computes a SHA-256 hash of the Monad's binary representation.
+// This is used for change detection to avoid unnecessary signature regeneration.
+func (d *Daemon) computeMonadHash(m *monad.Monad) [32]byte {
+	data, err := m.MarshalBinary()
+	if err != nil {
+		// Return zero hash on error - will cause regeneration
+		return [32]byte{}
+	}
+	return sha256.Sum256(data)
+}
+
+// GetLSHDiscoveryManager returns the LSH discovery manager for external access.
+// This can be used for testing or advanced integrations.
+func (d *Daemon) GetLSHDiscoveryManager() *discovery.LSHDiscoveryManager {
+	return d.lshDiscovery
 }
 
 // shutdownTimeout is the maximum time to wait for graceful shutdown.

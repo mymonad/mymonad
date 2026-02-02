@@ -10,6 +10,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	pb "github.com/mymonad/mymonad/api/proto"
+	"github.com/mymonad/mymonad/pkg/monad"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -1266,4 +1267,239 @@ func TestDaemon_BootstrapMultiaddrWithoutPeerID(t *testing.T) {
 	if resp.Error == "" {
 		t.Error("Bootstrap() with multiaddr without peer ID should have error message")
 	}
+}
+
+func TestDaemon_LSHDiscoveryManagerInitialized(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify LSH discovery manager is initialized
+	lshMgr := d.GetLSHDiscoveryManager()
+	if lshMgr == nil {
+		t.Fatal("LSH discovery manager should be initialized")
+	}
+
+	// Verify default config is applied
+	config := lshMgr.Config()
+	if config.HammingThreshold != 64 {
+		t.Errorf("Expected HammingThreshold=64, got %d", config.HammingThreshold)
+	}
+	if config.MaxPendingExchanges != 10 {
+		t.Errorf("Expected MaxPendingExchanges=10, got %d", config.MaxPendingExchanges)
+	}
+}
+
+func TestDaemon_HandleMonadUpdated(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Create a test Monad with correct dimensions
+	testMonad := createTestMonad(t, LSHDimensions)
+
+	// Initially, no signature should be set
+	if d.lshDiscovery.GetLocalSignature() != nil {
+		t.Error("Expected no local signature before HandleMonadUpdated")
+	}
+
+	// Handle Monad update
+	d.HandleMonadUpdated(testMonad)
+
+	// Now signature should be set
+	sig := d.lshDiscovery.GetLocalSignature()
+	if sig == nil {
+		t.Fatal("Expected local signature after HandleMonadUpdated")
+	}
+
+	// Signature should have correct size (256 bits = 32 bytes)
+	expectedBytes := (LSHNumHashes + 7) / 8
+	if len(sig) != expectedBytes {
+		t.Errorf("Expected signature length %d, got %d", expectedBytes, len(sig))
+	}
+}
+
+func TestDaemon_HandleMonadUpdated_NilMonad(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Should not panic with nil Monad
+	d.HandleMonadUpdated(nil)
+
+	// Signature should still be nil
+	if d.lshDiscovery.GetLocalSignature() != nil {
+		t.Error("Expected no signature after nil Monad update")
+	}
+}
+
+func TestDaemon_HandleMonadUpdated_DimensionMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Create a Monad with wrong dimensions
+	wrongDimensionMonad := createTestMonad(t, 128) // Wrong dimension
+
+	// Handle update - should not set signature due to dimension mismatch
+	d.HandleMonadUpdated(wrongDimensionMonad)
+
+	// Signature should remain nil due to dimension mismatch
+	if d.lshDiscovery.GetLocalSignature() != nil {
+		t.Error("Expected no signature with dimension mismatch")
+	}
+}
+
+func TestDaemon_HandleMonadUpdated_OnlyRegenWhenChanged(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Create and update with first Monad
+	testMonad := createTestMonad(t, LSHDimensions)
+	d.HandleMonadUpdated(testMonad)
+
+	// Get the signature
+	sig1 := d.lshDiscovery.GetLocalSignature()
+	if sig1 == nil {
+		t.Fatal("Expected signature after first update")
+	}
+
+	// Update again with same Monad (unchanged)
+	d.HandleMonadUpdated(testMonad)
+
+	// Signature should be the same
+	sig2 := d.lshDiscovery.GetLocalSignature()
+	if len(sig1) != len(sig2) {
+		t.Error("Signature length changed unexpectedly")
+	}
+	for i := range sig1 {
+		if sig1[i] != sig2[i] {
+			t.Error("Signature changed when Monad was unchanged")
+			break
+		}
+	}
+
+	// Now modify the Monad
+	embedding := make([]float32, LSHDimensions)
+	for i := range embedding {
+		embedding[i] = float32(i) * 0.001
+	}
+	testMonad.Update(embedding)
+
+	// Update with modified Monad
+	d.HandleMonadUpdated(testMonad)
+
+	// Signature should be different now
+	sig3 := d.lshDiscovery.GetLocalSignature()
+	if sig3 == nil {
+		t.Fatal("Expected signature after modified update")
+	}
+}
+
+// createTestMonad creates a test Monad with random data for testing.
+func createTestMonad(t *testing.T, dimensions int) *monad.Monad {
+	t.Helper()
+	m := monad.New(dimensions)
+
+	// Add some test embeddings to make it non-zero
+	embedding := make([]float32, dimensions)
+	for i := range embedding {
+		embedding[i] = float32(i) * 0.01
+	}
+	if err := m.Update(embedding); err != nil {
+		t.Fatalf("Failed to update test monad: %v", err)
+	}
+
+	return m
 }
