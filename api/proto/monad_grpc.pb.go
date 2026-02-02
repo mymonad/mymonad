@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v4.25.1
-// source: monad.proto
+// source: api/proto/monad.proto
 
 package proto
 
@@ -207,14 +207,20 @@ var MonadStore_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "monad.proto",
+	Metadata: "api/proto/monad.proto",
 }
 
 const (
-	AgentService_Status_FullMethodName    = "/monad.AgentService/Status"
-	AgentService_Peers_FullMethodName     = "/monad.AgentService/Peers"
-	AgentService_Bootstrap_FullMethodName = "/monad.AgentService/Bootstrap"
-	AgentService_Identity_FullMethodName  = "/monad.AgentService/Identity"
+	AgentService_Status_FullMethodName           = "/monad.AgentService/Status"
+	AgentService_Peers_FullMethodName            = "/monad.AgentService/Peers"
+	AgentService_Bootstrap_FullMethodName        = "/monad.AgentService/Bootstrap"
+	AgentService_Identity_FullMethodName         = "/monad.AgentService/Identity"
+	AgentService_StartHandshake_FullMethodName   = "/monad.AgentService/StartHandshake"
+	AgentService_ListHandshakes_FullMethodName   = "/monad.AgentService/ListHandshakes"
+	AgentService_GetHandshake_FullMethodName     = "/monad.AgentService/GetHandshake"
+	AgentService_ApproveHandshake_FullMethodName = "/monad.AgentService/ApproveHandshake"
+	AgentService_RejectHandshake_FullMethodName  = "/monad.AgentService/RejectHandshake"
+	AgentService_WatchHandshakes_FullMethodName  = "/monad.AgentService/WatchHandshakes"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -231,6 +237,13 @@ type AgentServiceClient interface {
 	Bootstrap(ctx context.Context, in *BootstrapRequest, opts ...grpc.CallOption) (*BootstrapResponse, error)
 	// Identity returns the local identity info.
 	Identity(ctx context.Context, in *IdentityRequest, opts ...grpc.CallOption) (*IdentityResponse, error)
+	// Handshake operations
+	StartHandshake(ctx context.Context, in *StartHandshakeRequest, opts ...grpc.CallOption) (*StartHandshakeResponse, error)
+	ListHandshakes(ctx context.Context, in *ListHandshakesRequest, opts ...grpc.CallOption) (*ListHandshakesResponse, error)
+	GetHandshake(ctx context.Context, in *GetHandshakeRequest, opts ...grpc.CallOption) (*GetHandshakeResponse, error)
+	ApproveHandshake(ctx context.Context, in *ApproveHandshakeRequest, opts ...grpc.CallOption) (*ApproveHandshakeResponse, error)
+	RejectHandshake(ctx context.Context, in *RejectHandshakeRequest, opts ...grpc.CallOption) (*RejectHandshakeResponse, error)
+	WatchHandshakes(ctx context.Context, in *WatchHandshakesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[HandshakeEvent], error)
 }
 
 type agentServiceClient struct {
@@ -281,6 +294,75 @@ func (c *agentServiceClient) Identity(ctx context.Context, in *IdentityRequest, 
 	return out, nil
 }
 
+func (c *agentServiceClient) StartHandshake(ctx context.Context, in *StartHandshakeRequest, opts ...grpc.CallOption) (*StartHandshakeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StartHandshakeResponse)
+	err := c.cc.Invoke(ctx, AgentService_StartHandshake_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ListHandshakes(ctx context.Context, in *ListHandshakesRequest, opts ...grpc.CallOption) (*ListHandshakesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListHandshakesResponse)
+	err := c.cc.Invoke(ctx, AgentService_ListHandshakes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetHandshake(ctx context.Context, in *GetHandshakeRequest, opts ...grpc.CallOption) (*GetHandshakeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetHandshakeResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetHandshake_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ApproveHandshake(ctx context.Context, in *ApproveHandshakeRequest, opts ...grpc.CallOption) (*ApproveHandshakeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ApproveHandshakeResponse)
+	err := c.cc.Invoke(ctx, AgentService_ApproveHandshake_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RejectHandshake(ctx context.Context, in *RejectHandshakeRequest, opts ...grpc.CallOption) (*RejectHandshakeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RejectHandshakeResponse)
+	err := c.cc.Invoke(ctx, AgentService_RejectHandshake_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) WatchHandshakes(ctx context.Context, in *WatchHandshakesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[HandshakeEvent], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[0], AgentService_WatchHandshakes_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchHandshakesRequest, HandshakeEvent]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_WatchHandshakesClient = grpc.ServerStreamingClient[HandshakeEvent]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -295,6 +377,13 @@ type AgentServiceServer interface {
 	Bootstrap(context.Context, *BootstrapRequest) (*BootstrapResponse, error)
 	// Identity returns the local identity info.
 	Identity(context.Context, *IdentityRequest) (*IdentityResponse, error)
+	// Handshake operations
+	StartHandshake(context.Context, *StartHandshakeRequest) (*StartHandshakeResponse, error)
+	ListHandshakes(context.Context, *ListHandshakesRequest) (*ListHandshakesResponse, error)
+	GetHandshake(context.Context, *GetHandshakeRequest) (*GetHandshakeResponse, error)
+	ApproveHandshake(context.Context, *ApproveHandshakeRequest) (*ApproveHandshakeResponse, error)
+	RejectHandshake(context.Context, *RejectHandshakeRequest) (*RejectHandshakeResponse, error)
+	WatchHandshakes(*WatchHandshakesRequest, grpc.ServerStreamingServer[HandshakeEvent]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -316,6 +405,24 @@ func (UnimplementedAgentServiceServer) Bootstrap(context.Context, *BootstrapRequ
 }
 func (UnimplementedAgentServiceServer) Identity(context.Context, *IdentityRequest) (*IdentityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Identity not implemented")
+}
+func (UnimplementedAgentServiceServer) StartHandshake(context.Context, *StartHandshakeRequest) (*StartHandshakeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StartHandshake not implemented")
+}
+func (UnimplementedAgentServiceServer) ListHandshakes(context.Context, *ListHandshakesRequest) (*ListHandshakesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListHandshakes not implemented")
+}
+func (UnimplementedAgentServiceServer) GetHandshake(context.Context, *GetHandshakeRequest) (*GetHandshakeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetHandshake not implemented")
+}
+func (UnimplementedAgentServiceServer) ApproveHandshake(context.Context, *ApproveHandshakeRequest) (*ApproveHandshakeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveHandshake not implemented")
+}
+func (UnimplementedAgentServiceServer) RejectHandshake(context.Context, *RejectHandshakeRequest) (*RejectHandshakeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RejectHandshake not implemented")
+}
+func (UnimplementedAgentServiceServer) WatchHandshakes(*WatchHandshakesRequest, grpc.ServerStreamingServer[HandshakeEvent]) error {
+	return status.Error(codes.Unimplemented, "method WatchHandshakes not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -410,6 +517,107 @@ func _AgentService_Identity_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_StartHandshake_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartHandshakeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).StartHandshake(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_StartHandshake_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).StartHandshake(ctx, req.(*StartHandshakeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ListHandshakes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListHandshakesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ListHandshakes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ListHandshakes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ListHandshakes(ctx, req.(*ListHandshakesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetHandshake_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHandshakeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetHandshake(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetHandshake_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetHandshake(ctx, req.(*GetHandshakeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ApproveHandshake_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveHandshakeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ApproveHandshake(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ApproveHandshake_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ApproveHandshake(ctx, req.(*ApproveHandshakeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RejectHandshake_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectHandshakeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RejectHandshake(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RejectHandshake_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RejectHandshake(ctx, req.(*RejectHandshakeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_WatchHandshakes_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchHandshakesRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServiceServer).WatchHandshakes(m, &grpc.GenericServerStream[WatchHandshakesRequest, HandshakeEvent]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_WatchHandshakesServer = grpc.ServerStreamingServer[HandshakeEvent]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -433,7 +641,33 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Identity",
 			Handler:    _AgentService_Identity_Handler,
 		},
+		{
+			MethodName: "StartHandshake",
+			Handler:    _AgentService_StartHandshake_Handler,
+		},
+		{
+			MethodName: "ListHandshakes",
+			Handler:    _AgentService_ListHandshakes_Handler,
+		},
+		{
+			MethodName: "GetHandshake",
+			Handler:    _AgentService_GetHandshake_Handler,
+		},
+		{
+			MethodName: "ApproveHandshake",
+			Handler:    _AgentService_ApproveHandshake_Handler,
+		},
+		{
+			MethodName: "RejectHandshake",
+			Handler:    _AgentService_RejectHandshake_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "monad.proto",
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchHandshakes",
+			Handler:       _AgentService_WatchHandshakes_Handler,
+			ServerStreams: true,
+		},
+	},
+	Metadata: "api/proto/monad.proto",
 }

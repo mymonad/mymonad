@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package handshake;
+
+option go_package = "github.com/mymonad/mymonad/api/proto";
+
+// HandshakeEnvelope wraps all handshake messages.
+message HandshakeEnvelope {
+  MessageType type = 1;
+  bytes payload = 2;
+  int64 timestamp = 3;
+  bytes signature = 4;
+}
+
+enum MessageType {
+  ATTESTATION_REQUEST = 0;
+  ATTESTATION_RESPONSE = 1;
+  VECTOR_MATCH_REQUEST = 2;
+  VECTOR_MATCH_RESPONSE = 3;
+  DEALBREAKER_REQUEST = 4;
+  DEALBREAKER_RESPONSE = 5;
+  CHAT_MESSAGE = 6;
+  UNMASK_REQUEST = 7;
+  UNMASK_RESPONSE = 8;
+  REJECT = 9;
+}
+
+// AttestationRequestPayload is the payload for ATTESTATION_REQUEST.
+message AttestationRequestPayload {
+  string version = 1;
+  string peer_id = 2;
+  string challenge = 3;  // Hashcash challenge
+}
+
+// AttestationResponsePayload is the payload for ATTESTATION_RESPONSE.
+message AttestationResponsePayload {
+  string version = 1;
+  string peer_id = 2;
+  string solution = 3;  // Hashcash solution
+}
+
+// VectorMatchRequestPayload is the payload for VECTOR_MATCH_REQUEST.
+message VectorMatchRequestPayload {
+  string peer_id = 1;
+  bytes encrypted_monad = 2;
+}
+
+// VectorMatchResponsePayload is the payload for VECTOR_MATCH_RESPONSE.
+message VectorMatchResponsePayload {
+  string peer_id = 1;
+  bool matched = 2;  // Score >= threshold (score not revealed)
+}
+
+// DealBreakerRequestPayload is the payload for DEALBREAKER_REQUEST.
+message DealBreakerRequestPayload {
+  repeated DealBreakerQuestion questions = 1;
+}
+
+message DealBreakerQuestion {
+  string id = 1;
+  string question = 2;
+  bool answer = 3;  // Our answer
+}
+
+// DealBreakerResponsePayload is the payload for DEALBREAKER_RESPONSE.
+message DealBreakerResponsePayload {
+  repeated DealBreakerAnswer answers = 1;
+  bool compatible = 2;
+}
+
+message DealBreakerAnswer {
+  string question_id = 1;
+  bool answer = 2;
+}
+
+// ChatMessagePayload is the payload for CHAT_MESSAGE.
+message ChatMessagePayload {
+  string message_id = 1;
+  bytes encrypted_content = 2;  // Encrypted with session key
+  int64 sequence = 3;
+}
+
+// UnmaskRequestPayload is the payload for UNMASK_REQUEST.
+message UnmaskRequestPayload {
+  bool ready = 1;  // Indicates ready to unmask
+}
+
+// UnmaskResponsePayload is the payload for UNMASK_RESPONSE.
+message UnmaskResponsePayload {
+  bool accepted = 1;
+  IdentityPayload identity = 2;  // Only set if accepted
+}
+
+// IdentityPayload contains the revealed identity.
+message IdentityPayload {
+  string display_name = 1;
+
+  // Contact method (at least one required)
+  string email = 2;
+  string signal_number = 3;
+  string matrix_id = 4;
+
+  // Optional verification
+  bytes pgp_public_key = 5;
+  string pgp_fingerprint = 6;
+
+  // Proves contact belongs to this Ed25519 identity
+  bytes contact_signature = 7;
+}
+
+// RejectPayload is the payload for REJECT.
+message RejectPayload {
+  string reason = 1;
+  string stage = 2;  // Which stage the rejection occurred in
+}

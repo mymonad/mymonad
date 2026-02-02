@@ -29,6 +29,8 @@ func main() {
 		err = cli.Bootstrap(os.Args[2])
 	case "identity":
 		err = cli.Identity()
+	case "handshake":
+		err = cli.Handshake(os.Args[2:])
 	case "help", "-h", "--help":
 		printUsage()
 		os.Exit(0)

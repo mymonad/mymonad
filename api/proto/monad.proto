@@ -54,6 +54,14 @@ service AgentService {
 
   // Identity returns the local identity info.
   rpc Identity(IdentityRequest) returns (IdentityResponse);
+
+  // Handshake operations
+  rpc StartHandshake(StartHandshakeRequest) returns (StartHandshakeResponse);
+  rpc ListHandshakes(ListHandshakesRequest) returns (ListHandshakesResponse);
+  rpc GetHandshake(GetHandshakeRequest) returns (GetHandshakeResponse);
+  rpc ApproveHandshake(ApproveHandshakeRequest) returns (ApproveHandshakeResponse);
+  rpc RejectHandshake(RejectHandshakeRequest) returns (RejectHandshakeResponse);
+  rpc WatchHandshakes(WatchHandshakesRequest) returns (stream HandshakeEvent);
 }
 
 message AgentStatusRequest {}
@@ -94,4 +102,74 @@ message IdentityResponse {
   string peer_id = 1;
   string did = 2;
   repeated string listen_addrs = 3;
+}
+
+// Handshake messages
+
+message StartHandshakeRequest {
+  string peer_id = 1;
+}
+
+message StartHandshakeResponse {
+  string session_id = 1;
+  string error = 2;
+}
+
+message ListHandshakesRequest {}
+
+message ListHandshakesResponse {
+  repeated HandshakeInfo handshakes = 1;
+}
+
+message GetHandshakeRequest {
+  string session_id = 1;
+}
+
+message GetHandshakeResponse {
+  HandshakeInfo handshake = 1;
+  string error = 2;
+}
+
+message HandshakeInfo {
+  string session_id = 1;
+  string peer_id = 2;
+  string state = 3;
+  string role = 4;
+  int64 elapsed_seconds = 5;
+  bool pending_approval = 6;
+  string pending_approval_type = 7;
+}
+
+message ApproveHandshakeRequest {
+  string session_id = 1;
+  // For unmask approval, include identity to reveal
+  string display_name = 2;
+  string email = 3;
+  string signal_number = 4;
+  string matrix_id = 5;
+}
+
+message ApproveHandshakeResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message RejectHandshakeRequest {
+  string session_id = 1;
+  string reason = 2;
+}
+
+message RejectHandshakeResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message WatchHandshakesRequest {}
+
+message HandshakeEvent {
+  string session_id = 1;
+  string event_type = 2;  // "started", "stage_changed", "pending_approval", "completed", "failed"
+  string state = 3;
+  string peer_id = 4;
+  int64 elapsed_seconds = 5;
 }
