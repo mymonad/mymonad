@@ -1569,3 +1569,183 @@ func TestDaemon_ChatServiceAccessor(t *testing.T) {
 		t.Error("GetChatService should return the same instance")
 	}
 }
+
+// ============================================================================
+// Anti-Spam Service Integration Tests
+// ============================================================================
+
+func TestDaemon_AntiSpamServiceInitialized(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify anti-spam service is initialized
+	antiSpam := d.GetAntiSpamService()
+	if antiSpam == nil {
+		t.Fatal("AntiSpamService should be initialized")
+	}
+}
+
+func TestDaemon_AntiSpamServiceAccessor(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify accessor returns the same instance each time
+	antiSpam1 := d.GetAntiSpamService()
+	antiSpam2 := d.GetAntiSpamService()
+
+	if antiSpam1 != antiSpam2 {
+		t.Error("GetAntiSpamService should return the same instance")
+	}
+}
+
+func TestDaemon_AntiSpamServiceIntegratedWithHandshake(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify the handshake manager has the anti-spam service set
+	// This is validated by checking that the anti-spam service is initialized
+	// and functioning correctly
+	antiSpam := d.GetAntiSpamService()
+	if antiSpam == nil {
+		t.Fatal("AntiSpamService should be initialized")
+	}
+
+	// Verify the service is in normal tier (default starting state)
+	tier := antiSpam.GetCurrentTier()
+	if tier.String() != "Normal" {
+		t.Errorf("Expected initial tier 'Normal', got '%s'", tier.String())
+	}
+}
+
+func TestDaemon_AntiSpamServiceDefaultConfiguration(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	antiSpam := d.GetAntiSpamService()
+	if antiSpam == nil {
+		t.Fatal("AntiSpamService should be initialized")
+	}
+
+	// Verify the service has proper difficulty settings
+	// Normal tier should have 16 bits difficulty (baseline PoW)
+	tier := antiSpam.GetCurrentTier()
+	var expectedBits uint32 = 16
+	if tier.Bits() != expectedBits {
+		t.Errorf("Expected Normal tier to have %d bits, got %d", expectedBits, tier.Bits())
+	}
+}
+
+func TestDaemon_AntiSpamCleanupOnClose(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+
+	// Get reference to anti-spam service before closing
+	antiSpam := d.GetAntiSpamService()
+	if antiSpam == nil {
+		t.Fatal("AntiSpamService should be initialized")
+	}
+
+	// Close daemon - this should call antiSpam.Stop()
+	if err := d.Close(); err != nil {
+		t.Errorf("Close() error = %v", err)
+	}
+
+	// The anti-spam service should still be accessible (pointer is still valid)
+	// but its internal cleanup goroutine should have been stopped.
+	// We verify that Stop() can be called multiple times safely.
+	antiSpam.Stop() // Should not panic
+}

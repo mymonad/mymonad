@@ -14,6 +14,7 @@ import (
 
 	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/internal/agent"
+	"github.com/mymonad/mymonad/internal/antispam"
 	"github.com/mymonad/mymonad/internal/chat"
 	"github.com/mymonad/mymonad/internal/config"
 	"github.com/mymonad/mymonad/internal/crypto"
@@ -132,6 +133,9 @@ type Daemon struct {
 	handshakeManager *handshake.Manager
 	handshakeHandler *handshake.StreamHandler
 
+	// Anti-spam service for PoW-based protection
+	antiSpam *antispam.AntiSpamService
+
 	// Chat service for encrypted human-to-human communication
 	chatService *chat.ChatService
 
@@ -238,7 +242,28 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 		state:            StateIdle,
 	}
 
+	// Initialize anti-spam service
+	d.initAntiSpam()
+
 	return d, nil
+}
+
+// initAntiSpam initializes the anti-spam service and wires it to the handshake manager.
+// The anti-spam service provides load-adaptive PoW challenges to prevent spam attacks.
+func (d *Daemon) initAntiSpam() {
+	// Use default configuration for anti-spam service
+	config := antispam.DefaultDifficultyConfig()
+
+	d.antiSpam = antispam.NewAntiSpamService(config)
+	d.handshakeManager.SetAntiSpamService(d.antiSpam)
+
+	// Log tier changes for monitoring
+	d.antiSpam.SetOnTierChange(func(tier antispam.DifficultyTier) {
+		d.logger.Warn("anti-spam difficulty changed",
+			"tier", tier.String(),
+			"bits", tier.Bits(),
+		)
+	})
 }
 
 // loadOrGenerateIdentity loads an existing identity or generates a new one.
@@ -450,6 +475,12 @@ func (d *Daemon) GetChatService() *chat.ChatService {
 	return d.chatService
 }
 
+// GetAntiSpamService returns the anti-spam service for external access.
+// This can be used for testing or monitoring.
+func (d *Daemon) GetAntiSpamService() *antispam.AntiSpamService {
+	return d.antiSpam
+}
+
 // shutdownTimeout is the maximum time to wait for graceful shutdown.
 const shutdownTimeout = 5 * time.Second
 
@@ -472,6 +503,11 @@ func (d *Daemon) shutdown() error {
 			d.logger.Warn("gRPC graceful stop timed out, forcing stop")
 			d.server.Stop()
 		}
+	}
+
+	// Stop anti-spam service
+	if d.antiSpam != nil {
+		d.antiSpam.Stop()
 	}
 
 	// Remove socket file
@@ -512,6 +548,11 @@ func (d *Daemon) shutdown() error {
 // This is useful for tests that don't call Run().
 func (d *Daemon) Close() error {
 	var errs []error
+
+	// Stop anti-spam service
+	if d.antiSpam != nil {
+		d.antiSpam.Stop()
+	}
 
 	if d.dht != nil {
 		if err := d.dht.Close(); err != nil {
