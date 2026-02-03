@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package mymonad.zkproof;
+
+option go_package = "github.com/mymonad/mymonad/api/proto";
+
+// ZKProofRequest initiates a ZK proof exchange between two peers.
+// The requester sends their commitment and revealed signature, and the responder
+// must generate a proof that their (hidden) signature is within the agreed Hamming
+// distance threshold of the revealed signature.
+message ZKProofRequest {
+  // Agreed Hamming distance threshold k
+  // Both peers must agree on this value during capability negotiation.
+  // The proof will verify that Hamming(sig_a, sig_b) <= max_distance.
+  uint32 max_distance = 1;
+
+  // MiMC commitment to the requester's LSH signature: MiMC(signature, salt)
+  // This commitment is revealed later, allowing the responder to verify
+  // that the requester didn't change their signature after seeing the response.
+  bytes commitment = 2;
+
+  // Requester's revealed LSH signature
+  // The responder uses this as the public input to their ZK proof,
+  // proving proximity to this signature without revealing their own.
+  bytes signature = 3;
+}
+
+// ZKProofResponse contains the ZK proof and the responder's commitment.
+// After receiving a ZKProofRequest, the responder generates a PLONK proof
+// demonstrating their signature is within the Hamming threshold.
+message ZKProofResponse {
+  // Serialized PLONK proof (gnark bn254 format)
+  // The proof demonstrates: "I know a signature S such that
+  // Hamming(S, requester_signature) <= max_distance AND
+  // MiMC(S, salt) = my_commitment"
+  bytes proof = 1;
+
+  // MiMC commitment to the responder's LSH signature
+  // Used by the requester to verify the proof binds to the responder's signature
+  bytes commitment = 2;
+
+  // Responder's revealed LSH signature
+  // Revealed for mutual verification - the requester can now prove
+  // proximity to this signature as well
+  bytes signature = 3;
+}
+
+// ZKProofResult indicates the verification outcome of a ZKProofResponse.
+// Sent after verifying the proof to inform the peer of the result.
+message ZKProofResult {
+  // True if the proof verified successfully
+  bool valid = 1;
+
+  // Error code if validation failed. Possible values:
+  // - "invalid_proof": The PLONK proof failed verification
+  // - "commitment_mismatch": The proof commitment doesn't match the advertised commitment
+  // - "threshold_exceeded": The Hamming distance exceeds the agreed threshold
+  // - "malformed_proof": The proof bytes could not be deserialized
+  // - "invalid_signature": The signature has incorrect length or format
+  string error = 2;
+}
+
+// ZKCapability advertises a peer's support for ZK proofs in DHT bucket records.
+// Peers discover each other's capabilities during DHT lookups and use this
+// information to determine protocol compatibility before initiating exchanges.
+message ZKCapability {
+  // True if the peer supports ZK proof verification
+  // Peers should only attempt ZK exchanges with compatible peers
+  bool supported = 1;
+
+  // Proof system identifier for compatibility checking
+  // Currently only "plonk-bn254" is supported
+  // Future versions may support "groth16-bn254", "plonk-bls12", etc.
+  string proof_system = 2;
+
+  // Maximum LSH signature length this peer can handle (in bits)
+  // Typically 256 bits. Peers must have matching signature lengths
+  // to generate/verify compatible proofs.
+  uint32 max_signature_bits = 3;
+}
