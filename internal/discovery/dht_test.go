@@ -367,3 +367,184 @@ func TestSignatureState_FullLifecycle(t *testing.T) {
 		t.Error("Should regenerate with different hash")
 	}
 }
+
+// ============================================================
+// ZKCapability Tests
+// ============================================================
+
+func TestNewZKCapability(t *testing.T) {
+	cap := NewZKCapability()
+
+	if !cap.Supported {
+		t.Error("NewZKCapability should create a supported capability")
+	}
+
+	if cap.ProofSystem != "plonk-bn254" {
+		t.Errorf("ProofSystem = %q, want %q", cap.ProofSystem, "plonk-bn254")
+	}
+
+	if cap.MaxSignatureBits != 256 {
+		t.Errorf("MaxSignatureBits = %d, want 256", cap.MaxSignatureBits)
+	}
+}
+
+func TestZKCapability_IsCompatible(t *testing.T) {
+	tests := []struct {
+		name  string
+		cap1  *ZKCapability
+		cap2  *ZKCapability
+		want  bool
+	}{
+		{
+			name: "both supported and matching",
+			cap1: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			cap2: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			want: true,
+		},
+		{
+			name: "first nil",
+			cap1: nil,
+			cap2: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			want: false,
+		},
+		{
+			name: "second nil",
+			cap1: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			cap2: nil,
+			want: false,
+		},
+		{
+			name: "first not supported",
+			cap1: &ZKCapability{Supported: false, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			cap2: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			want: false,
+		},
+		{
+			name: "second not supported",
+			cap1: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			cap2: &ZKCapability{Supported: false, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			want: false,
+		},
+		{
+			name: "different proof system",
+			cap1: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			cap2: &ZKCapability{Supported: true, ProofSystem: "groth16-bn254", MaxSignatureBits: 256},
+			want: false,
+		},
+		{
+			name: "different signature bits",
+			cap1: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 256},
+			cap2: &ZKCapability{Supported: true, ProofSystem: "plonk-bn254", MaxSignatureBits: 128},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.cap1.IsCompatible(tt.cap2)
+			if got != tt.want {
+				t.Errorf("IsCompatible() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBucketRecord_SerializationWithZKCapability(t *testing.T) {
+	peerID, err := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+	if err != nil {
+		t.Fatalf("Failed to decode peer ID: %v", err)
+	}
+
+	record := &BucketRecord{
+		PeerID:    peerID,
+		Addresses: []string{"/ip4/192.168.1.1/tcp/4001"},
+		Timestamp: time.Now().Unix(),
+		TTL:       3600,
+		ZKCapability: &ZKCapability{
+			Supported:        true,
+			ProofSystem:      "plonk-bn254",
+			MaxSignatureBits: 256,
+		},
+	}
+
+	data, err := BucketRecordToJSON(record)
+	if err != nil {
+		t.Fatalf("BucketRecordToJSON failed: %v", err)
+	}
+
+	parsed, err := BucketRecordFromJSON(data)
+	if err != nil {
+		t.Fatalf("BucketRecordFromJSON failed: %v", err)
+	}
+
+	if parsed.ZKCapability == nil {
+		t.Fatal("ZKCapability should not be nil after deserialization")
+	}
+
+	if !parsed.ZKCapability.Supported {
+		t.Error("ZKCapability.Supported mismatch")
+	}
+
+	if parsed.ZKCapability.ProofSystem != record.ZKCapability.ProofSystem {
+		t.Errorf("ZKCapability.ProofSystem = %q, want %q",
+			parsed.ZKCapability.ProofSystem, record.ZKCapability.ProofSystem)
+	}
+
+	if parsed.ZKCapability.MaxSignatureBits != record.ZKCapability.MaxSignatureBits {
+		t.Errorf("ZKCapability.MaxSignatureBits = %d, want %d",
+			parsed.ZKCapability.MaxSignatureBits, record.ZKCapability.MaxSignatureBits)
+	}
+}
+
+func TestBucketRecord_SerializationWithoutZKCapability(t *testing.T) {
+	peerID, err := peer.Decode("12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN")
+	if err != nil {
+		t.Fatalf("Failed to decode peer ID: %v", err)
+	}
+
+	record := &BucketRecord{
+		PeerID:       peerID,
+		Addresses:    []string{"/ip4/192.168.1.1/tcp/4001"},
+		Timestamp:    time.Now().Unix(),
+		TTL:          3600,
+		ZKCapability: nil, // Not set
+	}
+
+	data, err := BucketRecordToJSON(record)
+	if err != nil {
+		t.Fatalf("BucketRecordToJSON failed: %v", err)
+	}
+
+	// Check that zk_capability is omitted from JSON
+	if bytes.Contains(data, []byte("zk_capability")) {
+		t.Error("JSON should not contain zk_capability when nil (omitempty)")
+	}
+
+	parsed, err := BucketRecordFromJSON(data)
+	if err != nil {
+		t.Fatalf("BucketRecordFromJSON failed: %v", err)
+	}
+
+	if parsed.ZKCapability != nil {
+		t.Error("ZKCapability should be nil after deserializing record without it")
+	}
+}
+
+func TestBucketRecord_BackwardCompatibility(t *testing.T) {
+	// Simulate a record from an older version without ZK fields
+	oldFormatJSON := []byte(`{"peer_id":"12D3KooWDpJ7As7BWAwRMfu1VU2WCqNjvq387JEYKDBj4kx6nXTN","addrs":["/ip4/192.168.1.1/tcp/4001"],"timestamp":1234567890,"ttl":3600}`)
+
+	parsed, err := BucketRecordFromJSON(oldFormatJSON)
+	if err != nil {
+		t.Fatalf("Failed to parse old format JSON: %v", err)
+	}
+
+	// Should deserialize without errors, ZKCapability should be nil
+	if parsed.ZKCapability != nil {
+		t.Error("ZKCapability should be nil for old format records")
+	}
+
+	if len(parsed.Addresses) != 1 {
+		t.Errorf("Addresses length = %d, want 1", len(parsed.Addresses))
+	}
+}

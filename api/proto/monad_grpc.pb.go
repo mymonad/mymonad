@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.0
 // - protoc             v4.25.1
-// source: api/proto/monad.proto
+// source: monad.proto
 
 package proto
 
@@ -207,7 +207,7 @@ var MonadStore_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/proto/monad.proto",
+	Metadata: "monad.proto",
 }
 
 const (
@@ -669,5 +669,5 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "api/proto/monad.proto",
+	Metadata: "monad.proto",
 }

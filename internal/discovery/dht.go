@@ -54,15 +54,35 @@ type BucketRecord struct {
 
 	// TTL is the time-to-live in seconds until the record is considered stale.
 	TTL int64 `json:"ttl"`
+
+	// ZKCapability advertises the peer's ZK proof capabilities.
+	// When nil, the peer does not support ZK proofs or hasn't advertised them.
+	ZKCapability *ZKCapability `json:"zk_capability,omitempty"`
+}
+
+// ZKCapability represents a peer's zero-knowledge proof capability.
+// This is used in DHT records to advertise ZK support during discovery.
+type ZKCapability struct {
+	// Supported indicates whether ZK proofs are enabled for this peer.
+	Supported bool `json:"supported"`
+
+	// ProofSystem identifies the proof system (e.g., "plonk-bn254").
+	// Peers must use the same proof system to exchange proofs.
+	ProofSystem string `json:"proof_system"`
+
+	// MaxSignatureBits is the maximum LSH signature length in bits.
+	// Typically 256 bits. Peers must have matching signature lengths.
+	MaxSignatureBits uint32 `json:"max_signature_bits"`
 }
 
 // bucketRecordJSON is the JSON-serializable form of BucketRecord.
 // It uses string for PeerID since peer.ID doesn't serialize well with json.Marshal.
 type bucketRecordJSON struct {
-	PeerID    string   `json:"peer_id"`
-	Addresses []string `json:"addrs"`
-	Timestamp int64    `json:"timestamp"`
-	TTL       int64    `json:"ttl"`
+	PeerID       string        `json:"peer_id"`
+	Addresses    []string      `json:"addrs"`
+	Timestamp    int64         `json:"timestamp"`
+	TTL          int64         `json:"ttl"`
+	ZKCapability *ZKCapability `json:"zk_capability,omitempty"`
 }
 
 // SignatureState tracks the lifecycle of an LSH signature for DHT publishing.
@@ -142,10 +162,11 @@ func BucketRecordToJSON(record *BucketRecord) ([]byte, error) {
 
 	// Convert to JSON-serializable form
 	jsonRecord := bucketRecordJSON{
-		PeerID:    record.PeerID.String(),
-		Addresses: record.Addresses,
-		Timestamp: record.Timestamp,
-		TTL:       record.TTL,
+		PeerID:       record.PeerID.String(),
+		Addresses:    record.Addresses,
+		Timestamp:    record.Timestamp,
+		TTL:          record.TTL,
+		ZKCapability: record.ZKCapability,
 	}
 
 	return json.Marshal(jsonRecord)
@@ -174,9 +195,38 @@ func BucketRecordFromJSON(data []byte) (*BucketRecord, error) {
 	}
 
 	return &BucketRecord{
-		PeerID:    peerID,
-		Addresses: jsonRecord.Addresses,
-		Timestamp: jsonRecord.Timestamp,
-		TTL:       jsonRecord.TTL,
+		PeerID:       peerID,
+		Addresses:    jsonRecord.Addresses,
+		Timestamp:    jsonRecord.Timestamp,
+		TTL:          jsonRecord.TTL,
+		ZKCapability: jsonRecord.ZKCapability,
 	}, nil
+}
+
+// NewZKCapability creates a ZKCapability with the standard supported parameters.
+// Use this when advertising ZK capability in DHT records.
+func NewZKCapability() *ZKCapability {
+	return &ZKCapability{
+		Supported:        true,
+		ProofSystem:      "plonk-bn254",
+		MaxSignatureBits: 256,
+	}
+}
+
+// IsCompatible checks if this ZK capability is compatible with another.
+// Returns true if both peers can exchange ZK proofs.
+func (z *ZKCapability) IsCompatible(other *ZKCapability) bool {
+	if z == nil || other == nil {
+		return false
+	}
+	if !z.Supported || !other.Supported {
+		return false
+	}
+	if z.ProofSystem != other.ProofSystem {
+		return false
+	}
+	if z.MaxSignatureBits != other.MaxSignatureBits {
+		return false
+	}
+	return true
 }

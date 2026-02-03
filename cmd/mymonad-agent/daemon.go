@@ -20,6 +20,7 @@ import (
 	"github.com/mymonad/mymonad/internal/crypto"
 	"github.com/mymonad/mymonad/internal/discovery"
 	"github.com/mymonad/mymonad/internal/handshake"
+	"github.com/mymonad/mymonad/internal/zkproof"
 	"github.com/mymonad/mymonad/pkg/lsh"
 	"github.com/mymonad/mymonad/pkg/monad"
 
@@ -62,6 +63,24 @@ type DaemonConfig struct {
 	SimilarityThreshold float64
 	ChallengeDifficulty int
 	IngestSocket        string // To fetch Monad from ingest daemon
+	ZK                  ZKDaemonConfig
+}
+
+// ZKDaemonConfig holds ZK proof configuration for the daemon.
+// The ZK service is optional and disabled by default for privacy opt-in.
+type ZKDaemonConfig struct {
+	// Enabled determines whether this node advertises and accepts ZK proofs.
+	Enabled bool
+	// RequireZK when true rejects peers that do not provide ZK proofs.
+	RequireZK bool
+	// PreferZK when true prefers ZK-capable peers but accepts plaintext fallback.
+	PreferZK bool
+	// ProofTimeout is the maximum time to wait for proof operations.
+	ProofTimeout time.Duration
+	// MaxDistance is the maximum Hamming distance for ZK proofs.
+	MaxDistance uint32
+	// ProverWorkers is the number of parallel prover workers.
+	ProverWorkers int
 }
 
 // Validate checks that all required configuration fields are set.
@@ -100,6 +119,21 @@ func DefaultDaemonConfig() DaemonConfig {
 		SimilarityThreshold: defaults.Protocol.SimilarityThreshold,
 		ChallengeDifficulty: defaults.Protocol.ChallengeDifficulty,
 		IngestSocket:        paths.IngestSocket,
+		ZK:                  DefaultZKDaemonConfig(),
+	}
+}
+
+// DefaultZKDaemonConfig returns sensible defaults for ZK configuration.
+// ZK is disabled by default (opt-in for privacy).
+func DefaultZKDaemonConfig() ZKDaemonConfig {
+	zkDefaults := zkproof.DefaultZKConfig()
+	return ZKDaemonConfig{
+		Enabled:       zkDefaults.Enabled,       // false - opt-in
+		RequireZK:     zkDefaults.RequireZK,     // false
+		PreferZK:      zkDefaults.PreferZK,      // true
+		ProofTimeout:  zkDefaults.ProofTimeout,  // 30s
+		MaxDistance:   zkDefaults.MaxDistance,   // 64
+		ProverWorkers: zkDefaults.ProverWorkers, // 2
 	}
 }
 
@@ -138,6 +172,10 @@ type Daemon struct {
 
 	// Chat service for encrypted human-to-human communication
 	chatService *chat.ChatService
+
+	// ZK proof service for privacy-preserving similarity verification
+	zkService *zkproof.ZKService
+	zkHandler *zkproof.Handler
 
 	// LSH discovery components
 	lshDiscovery    *discovery.LSHDiscoveryManager
@@ -245,6 +283,14 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 	// Initialize anti-spam service
 	d.initAntiSpam()
 
+	// Initialize ZK service (optional, fails gracefully if disabled)
+	if err := d.initZKService(); err != nil {
+		logger.Warn("ZK service initialization failed, continuing without ZK",
+			"error", err,
+		)
+		// Don't fail daemon creation - ZK is optional
+	}
+
 	return d, nil
 }
 
@@ -264,6 +310,63 @@ func (d *Daemon) initAntiSpam() {
 			"bits", tier.Bits(),
 		)
 	})
+}
+
+// initZKService initializes the ZK proof service for privacy-preserving discovery.
+// The ZK service is optional - if disabled or initialization fails, the daemon
+// continues without ZK functionality.
+//
+// When enabled, this method:
+// 1. Creates the ZK service (compiles circuit if enabled)
+// 2. Wires the service to the discovery manager
+// 3. Registers the ZK stream handler for incoming proof exchanges
+func (d *Daemon) initZKService() error {
+	// Build ZK config from daemon config
+	zkCfg := zkproof.ZKConfig{
+		Enabled:       d.cfg.ZK.Enabled,
+		RequireZK:     d.cfg.ZK.RequireZK,
+		PreferZK:      d.cfg.ZK.PreferZK,
+		ProofTimeout:  d.cfg.ZK.ProofTimeout,
+		MaxDistance:   d.cfg.ZK.MaxDistance,
+		ProverWorkers: d.cfg.ZK.ProverWorkers,
+	}
+
+	// Create ZK service
+	svc, err := zkproof.NewZKService(zkCfg)
+	if err != nil {
+		return fmt.Errorf("create ZK service: %w", err)
+	}
+	d.zkService = svc
+
+	// Wire to discovery manager for ZK-aware peer selection
+	if d.discovery != nil {
+		d.discovery.SetZKService(svc)
+	}
+
+	// Register stream handler if ZK is enabled
+	if svc.IsEnabled() {
+		d.zkHandler = zkproof.NewHandler(svc, d.getLocalSignature)
+		d.zkHandler.RegisterStreamHandler(d.host.Host())
+
+		d.logger.Info("ZK proof service initialized",
+			"require_zk", zkCfg.RequireZK,
+			"prefer_zk", zkCfg.PreferZK,
+			"max_distance", zkCfg.MaxDistance,
+		)
+	} else {
+		d.logger.Debug("ZK proof service disabled")
+	}
+
+	return nil
+}
+
+// getLocalSignature returns the local LSH signature for ZK proof generation.
+// Returns nil if no signature is available.
+func (d *Daemon) getLocalSignature() []byte {
+	if d.lshDiscovery != nil {
+		return d.lshDiscovery.GetLocalSignature()
+	}
+	return nil
 }
 
 // loadOrGenerateIdentity loads an existing identity or generates a new one.
@@ -479,6 +582,19 @@ func (d *Daemon) GetChatService() *chat.ChatService {
 // This can be used for testing or monitoring.
 func (d *Daemon) GetAntiSpamService() *antispam.AntiSpamService {
 	return d.antiSpam
+}
+
+// GetZKService returns the ZK proof service for external access.
+// Returns nil if ZK proofs are not enabled.
+// This can be used for testing or advanced integrations.
+func (d *Daemon) GetZKService() *zkproof.ZKService {
+	return d.zkService
+}
+
+// GetZKHandler returns the ZK stream handler for external access.
+// Returns nil if ZK proofs are not enabled.
+func (d *Daemon) GetZKHandler() *zkproof.Handler {
+	return d.zkHandler
 }
 
 // shutdownTimeout is the maximum time to wait for graceful shutdown.

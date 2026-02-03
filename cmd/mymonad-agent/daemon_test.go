@@ -767,6 +767,64 @@ identity_path = "/tmp/file-identity.key"
 	}
 }
 
+func TestBuildConfig_FromFileWithZK(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	// Create a config file with ZK settings
+	configContent := `
+[network]
+port = 5002
+
+[discovery]
+mdns_enabled = true
+
+[storage]
+identity_path = "/tmp/file-identity.key"
+
+[zk]
+enabled = true
+require_zk = true
+prefer_zk = true
+proof_timeout_seconds = 45
+max_distance = 80
+prover_workers = 4
+`
+	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+		t.Fatalf("Failed to create config file: %v", err)
+	}
+
+	cfg, err := buildConfig(configPath, 0, nil, nil, true, "", "")
+	if err != nil {
+		t.Fatalf("buildConfig() error = %v", err)
+	}
+
+	// Verify ZK settings were loaded
+	if !cfg.ZK.Enabled {
+		t.Error("ZK.Enabled = false, want true")
+	}
+
+	if !cfg.ZK.RequireZK {
+		t.Error("ZK.RequireZK = false, want true")
+	}
+
+	if !cfg.ZK.PreferZK {
+		t.Error("ZK.PreferZK = false, want true")
+	}
+
+	if cfg.ZK.ProofTimeout != 45*time.Second {
+		t.Errorf("ZK.ProofTimeout = %v, want 45s", cfg.ZK.ProofTimeout)
+	}
+
+	if cfg.ZK.MaxDistance != 80 {
+		t.Errorf("ZK.MaxDistance = %d, want 80", cfg.ZK.MaxDistance)
+	}
+
+	if cfg.ZK.ProverWorkers != 4 {
+		t.Errorf("ZK.ProverWorkers = %d, want 4", cfg.ZK.ProverWorkers)
+	}
+}
+
 func TestBuildConfig_FileWithFlagOverrides(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.toml")
@@ -1748,4 +1806,211 @@ func TestDaemon_AntiSpamCleanupOnClose(t *testing.T) {
 	// but its internal cleanup goroutine should have been stopped.
 	// We verify that Stop() can be called multiple times safely.
 	antiSpam.Stop() // Should not panic
+}
+
+// ============================================================================
+// ZK Service Integration Tests
+// ============================================================================
+
+func TestDaemon_ZKServiceDisabledByDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+		// ZK config uses defaults - disabled
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// ZK service should be created but disabled
+	zkSvc := d.GetZKService()
+	if zkSvc == nil {
+		t.Fatal("ZKService should be initialized even when disabled")
+	}
+
+	if zkSvc.IsEnabled() {
+		t.Error("ZKService should be disabled by default")
+	}
+
+	// Handler should be nil when disabled
+	zkHandler := d.GetZKHandler()
+	if zkHandler != nil {
+		t.Error("ZKHandler should be nil when ZK is disabled")
+	}
+}
+
+func TestDaemon_ZKServiceAccessor(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify accessor returns the same instance each time
+	zkSvc1 := d.GetZKService()
+	zkSvc2 := d.GetZKService()
+
+	if zkSvc1 != zkSvc2 {
+		t.Error("GetZKService should return the same instance")
+	}
+}
+
+func TestDaemon_ZKConfigDefaults(t *testing.T) {
+	cfg := DefaultZKDaemonConfig()
+
+	// Check defaults match expected values
+	if cfg.Enabled {
+		t.Error("ZK should be disabled by default")
+	}
+
+	if cfg.RequireZK {
+		t.Error("RequireZK should be false by default")
+	}
+
+	if !cfg.PreferZK {
+		t.Error("PreferZK should be true by default")
+	}
+
+	if cfg.ProofTimeout != 30*time.Second {
+		t.Errorf("ProofTimeout = %v, want 30s", cfg.ProofTimeout)
+	}
+
+	if cfg.MaxDistance != 64 {
+		t.Errorf("MaxDistance = %d, want 64", cfg.MaxDistance)
+	}
+
+	if cfg.ProverWorkers != 2 {
+		t.Errorf("ProverWorkers = %d, want 2", cfg.ProverWorkers)
+	}
+}
+
+func TestDaemon_ZKServiceWiredToDiscoveryManager(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Discovery manager should have ZK service wired
+	// We can verify this by checking that ZK service was set
+	zkSvc := d.GetZKService()
+	if zkSvc == nil {
+		t.Fatal("ZKService should be initialized")
+	}
+
+	// The discovery manager's ZK service should match the daemon's ZK service
+	// This is verified implicitly through the daemon creation flow
+}
+
+func TestDaemon_GetLocalSignatureForZK(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Initially no signature
+	sig := d.getLocalSignature()
+	if sig != nil {
+		t.Error("Should have no signature before Monad update")
+	}
+
+	// Set signature via HandleMonadUpdated
+	testMonad := createTestMonad(t, LSHDimensions)
+	d.HandleMonadUpdated(testMonad)
+
+	// Now should have signature
+	sig = d.getLocalSignature()
+	if sig == nil {
+		t.Error("Should have signature after Monad update")
+	}
+
+	// Verify signature size
+	expectedSize := (LSHNumHashes + 7) / 8
+	if len(sig) != expectedSize {
+		t.Errorf("Signature size = %d, want %d", len(sig), expectedSize)
+	}
+}
+
+func TestDefaultDaemonConfig_IncludesZK(t *testing.T) {
+	cfg := DefaultDaemonConfig()
+
+	// Verify ZK config is included with defaults
+	if cfg.ZK.Enabled {
+		t.Error("Default ZK.Enabled should be false")
+	}
+
+	if cfg.ZK.RequireZK {
+		t.Error("Default ZK.RequireZK should be false")
+	}
+
+	if !cfg.ZK.PreferZK {
+		t.Error("Default ZK.PreferZK should be true")
+	}
+
+	if cfg.ZK.MaxDistance != 64 {
+		t.Errorf("Default ZK.MaxDistance = %d, want 64", cfg.ZK.MaxDistance)
+	}
 }

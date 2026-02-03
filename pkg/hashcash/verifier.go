@@ -17,19 +17,19 @@ import (
 // Note: ErrNilChallenge is defined in hashcash.go and reused here.
 var (
 	// ErrNilSolution is returned when the solution is nil.
-	ErrNilSolution = errors.New("hashcash: nil solution")
+	ErrNilSolution = errors.New("nil solution")
 
 	// ErrNonceMismatch is returned when solution.ChallengeNonce does not match challenge.Nonce.
-	ErrNonceMismatch = errors.New("hashcash: nonce mismatch")
+	ErrNonceMismatch = errors.New("nonce mismatch")
 
 	// ErrTimestampMismatch is returned when solution.ChallengeTimestamp does not match challenge.Timestamp.
-	ErrTimestampMismatch = errors.New("hashcash: timestamp mismatch")
+	ErrTimestampMismatch = errors.New("timestamp mismatch")
 
 	// ErrHashMismatch is returned when the recomputed hash does not match solution.Proof.
-	ErrHashMismatch = errors.New("hashcash: hash mismatch")
+	ErrHashMismatch = errors.New("hash mismatch")
 
 	// ErrInsufficientDifficulty is returned when the hash does not meet the required difficulty.
-	ErrInsufficientDifficulty = errors.New("hashcash: insufficient difficulty")
+	ErrInsufficientDifficulty = errors.New("insufficient difficulty")
 )
 
 // Verify validates a PoW solution against the original challenge.

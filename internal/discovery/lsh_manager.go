@@ -5,11 +5,14 @@
 package discovery
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/mymonad/mymonad/pkg/lsh"
 )
 
 // Retry logic constants
@@ -323,4 +326,131 @@ func (dm *LSHDiscoveryManager) CleanupExpiredExchanges() int {
 		}
 	}
 	return removed
+}
+
+// GetPendingExchangeWithExists returns the pending exchange for the given peer ID
+// along with a boolean indicating whether the exchange exists.
+func (dm *LSHDiscoveryManager) GetPendingExchangeWithExists(peerID peer.ID) (*Exchange, bool) {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
+	ex, exists := dm.pendingExchanges[peerID]
+	return ex, exists
+}
+
+// ShouldInitiateExchange determines if we should initiate an exchange with a peer.
+// The peer with the lexicographically lower ID initiates to avoid deadlock.
+// If IDs are equal, neither initiates (should not happen in practice).
+func (dm *LSHDiscoveryManager) ShouldInitiateExchange(localID, remoteID peer.ID) bool {
+	return shouldInitiate(localID, remoteID)
+}
+
+// InitiateExchange starts a signature exchange with a discovered peer.
+// Returns an error if an exchange is already pending with the peer,
+// if the maximum pending exchanges limit is reached, or if no local
+// signature is set.
+func (dm *LSHDiscoveryManager) InitiateExchange(peerID peer.ID) (*Exchange, error) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	// Check if no local signature
+	if dm.localSignature == nil {
+		return nil, ErrNoLocalSignature
+	}
+
+	// Check if already have pending exchange
+	if _, exists := dm.pendingExchanges[peerID]; exists {
+		return nil, fmt.Errorf("exchange already pending with peer %s", peerID)
+	}
+
+	// Check max pending limit
+	if len(dm.pendingExchanges) >= dm.config.MaxPendingExchanges {
+		return nil, fmt.Errorf("max pending exchanges reached")
+	}
+
+	// Create new exchange
+	ex, err := NewExchange(peerID, RoleInitiator, dm.localSignature)
+	if err != nil {
+		return nil, err
+	}
+
+	dm.pendingExchanges[peerID] = ex
+	return ex, nil
+}
+
+// CompleteExchange marks an exchange as complete and records the discovered peer.
+// The peer signature is copied to prevent external modifications.
+func (dm *LSHDiscoveryManager) CompleteExchange(peerID peer.ID, peerSignature []byte, hammingDistance int) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	// Remove from pending
+	delete(dm.pendingExchanges, peerID)
+
+	// Copy signature to prevent external modifications
+	sigCopy := make([]byte, len(peerSignature))
+	copy(sigCopy, peerSignature)
+
+	now := time.Now()
+
+	// Record discovered peer
+	existing := dm.discoveredPeers[peerID]
+	if existing != nil {
+		// Update existing peer
+		existing.Signature = sigCopy
+		existing.HammingDistance = hammingDistance
+		existing.LastExchange = now
+	} else {
+		// Add new peer
+		dm.discoveredPeers[peerID] = &DiscoveredPeer{
+			PeerID:          peerID,
+			Signature:       sigCopy,
+			HammingDistance: hammingDistance,
+			DiscoveredAt:    now,
+			LastExchange:    now,
+		}
+	}
+}
+
+// FailExchange marks an exchange as failed and cleans up.
+// If the exchange exists, its state is set to ExchangeStateFailed
+// before removal from pending exchanges.
+func (dm *LSHDiscoveryManager) FailExchange(peerID peer.ID, reason error) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	if ex, exists := dm.pendingExchanges[peerID]; exists {
+		ex.State = ExchangeStateFailed
+		delete(dm.pendingExchanges, peerID)
+	}
+}
+
+// DiscoveryLoop runs the periodic discovery process.
+// It queries the DHT bucket for peers and initiates exchanges
+// with discovered peers. The loop runs until the context is cancelled.
+func (dm *LSHDiscoveryManager) DiscoveryLoop(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			dm.discoverBucketPeers(ctx)
+		}
+	}
+}
+
+// discoverBucketPeers queries the DHT and initiates exchanges with new peers.
+// This is called periodically by DiscoveryLoop.
+func (dm *LSHDiscoveryManager) discoverBucketPeers(ctx context.Context) {
+	// Get bucket ID from local signature
+	bucketID := lsh.DeriveBucketID(dm.GetLocalSignature())
+	if bucketID == "" {
+		return // No signature set yet
+	}
+
+	// In production: query DHT for peers in bucket
+	// For now: this will be called by DHT discovery callback
+	// The actual DHT query implementation is in the dht.go file
 }

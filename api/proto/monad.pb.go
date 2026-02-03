@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v4.25.1
-// source: api/proto/monad.proto
+// source: monad.proto
 
 package proto
 
@@ -29,7 +29,7 @@ type GetMonadRequest struct {
 
 func (x *GetMonadRequest) Reset() {
 	*x = GetMonadRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[0]
+	mi := &file_monad_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +41,7 @@ func (x *GetMonadRequest) String() string {
 func (*GetMonadRequest) ProtoMessage() {}
 
 func (x *GetMonadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[0]
+	mi := &file_monad_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +54,7 @@ func (x *GetMonadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMonadRequest.ProtoReflect.Descriptor instead.
 func (*GetMonadRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{0}
+	return file_monad_proto_rawDescGZIP(), []int{0}
 }
 
 type GetMonadResponse struct {
@@ -68,7 +68,7 @@ type GetMonadResponse struct {
 
 func (x *GetMonadResponse) Reset() {
 	*x = GetMonadResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[1]
+	mi := &file_monad_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -80,7 +80,7 @@ func (x *GetMonadResponse) String() string {
 func (*GetMonadResponse) ProtoMessage() {}
 
 func (x *GetMonadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[1]
+	mi := &file_monad_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -93,7 +93,7 @@ func (x *GetMonadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetMonadResponse.ProtoReflect.Descriptor instead.
 func (*GetMonadResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{1}
+	return file_monad_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetMonadResponse) GetEncryptedMonad() []byte {
@@ -125,7 +125,7 @@ type WatchMonadRequest struct {
 
 func (x *WatchMonadRequest) Reset() {
 	*x = WatchMonadRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[2]
+	mi := &file_monad_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -137,7 +137,7 @@ func (x *WatchMonadRequest) String() string {
 func (*WatchMonadRequest) ProtoMessage() {}
 
 func (x *WatchMonadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[2]
+	mi := &file_monad_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -150,7 +150,7 @@ func (x *WatchMonadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchMonadRequest.ProtoReflect.Descriptor instead.
 func (*WatchMonadRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{2}
+	return file_monad_proto_rawDescGZIP(), []int{2}
 }
 
 type MonadUpdate struct {
@@ -164,7 +164,7 @@ type MonadUpdate struct {
 
 func (x *MonadUpdate) Reset() {
 	*x = MonadUpdate{}
-	mi := &file_api_proto_monad_proto_msgTypes[3]
+	mi := &file_monad_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -176,7 +176,7 @@ func (x *MonadUpdate) String() string {
 func (*MonadUpdate) ProtoMessage() {}
 
 func (x *MonadUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[3]
+	mi := &file_monad_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -189,7 +189,7 @@ func (x *MonadUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MonadUpdate.ProtoReflect.Descriptor instead.
 func (*MonadUpdate) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{3}
+	return file_monad_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MonadUpdate) GetEncryptedMonad() []byte {
@@ -221,7 +221,7 @@ type StatusRequest struct {
 
 func (x *StatusRequest) Reset() {
 	*x = StatusRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[4]
+	mi := &file_monad_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -233,7 +233,7 @@ func (x *StatusRequest) String() string {
 func (*StatusRequest) ProtoMessage() {}
 
 func (x *StatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[4]
+	mi := &file_monad_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -246,7 +246,7 @@ func (x *StatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusRequest.ProtoReflect.Descriptor instead.
 func (*StatusRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{4}
+	return file_monad_proto_rawDescGZIP(), []int{4}
 }
 
 type StatusResponse struct {
@@ -261,7 +261,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[5]
+	mi := &file_monad_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -273,7 +273,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[5]
+	mi := &file_monad_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,7 +286,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{5}
+	return file_monad_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *StatusResponse) GetReady() bool {
@@ -325,7 +325,7 @@ type AgentStatusRequest struct {
 
 func (x *AgentStatusRequest) Reset() {
 	*x = AgentStatusRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[6]
+	mi := &file_monad_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +337,7 @@ func (x *AgentStatusRequest) String() string {
 func (*AgentStatusRequest) ProtoMessage() {}
 
 func (x *AgentStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[6]
+	mi := &file_monad_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -350,7 +350,7 @@ func (x *AgentStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentStatusRequest.ProtoReflect.Descriptor instead.
 func (*AgentStatusRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{6}
+	return file_monad_proto_rawDescGZIP(), []int{6}
 }
 
 type AgentStatusResponse struct {
@@ -366,7 +366,7 @@ type AgentStatusResponse struct {
 
 func (x *AgentStatusResponse) Reset() {
 	*x = AgentStatusResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[7]
+	mi := &file_monad_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -378,7 +378,7 @@ func (x *AgentStatusResponse) String() string {
 func (*AgentStatusResponse) ProtoMessage() {}
 
 func (x *AgentStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[7]
+	mi := &file_monad_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -391,7 +391,7 @@ func (x *AgentStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AgentStatusResponse.ProtoReflect.Descriptor instead.
 func (*AgentStatusResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{7}
+	return file_monad_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AgentStatusResponse) GetReady() bool {
@@ -437,7 +437,7 @@ type PeersRequest struct {
 
 func (x *PeersRequest) Reset() {
 	*x = PeersRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[8]
+	mi := &file_monad_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -449,7 +449,7 @@ func (x *PeersRequest) String() string {
 func (*PeersRequest) ProtoMessage() {}
 
 func (x *PeersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[8]
+	mi := &file_monad_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -462,7 +462,7 @@ func (x *PeersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeersRequest.ProtoReflect.Descriptor instead.
 func (*PeersRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{8}
+	return file_monad_proto_rawDescGZIP(), []int{8}
 }
 
 type PeersResponse struct {
@@ -474,7 +474,7 @@ type PeersResponse struct {
 
 func (x *PeersResponse) Reset() {
 	*x = PeersResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[9]
+	mi := &file_monad_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -486,7 +486,7 @@ func (x *PeersResponse) String() string {
 func (*PeersResponse) ProtoMessage() {}
 
 func (x *PeersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[9]
+	mi := &file_monad_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -499,7 +499,7 @@ func (x *PeersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeersResponse.ProtoReflect.Descriptor instead.
 func (*PeersResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{9}
+	return file_monad_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *PeersResponse) GetPeers() []*PeerInfo {
@@ -520,7 +520,7 @@ type PeerInfo struct {
 
 func (x *PeerInfo) Reset() {
 	*x = PeerInfo{}
-	mi := &file_api_proto_monad_proto_msgTypes[10]
+	mi := &file_monad_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +532,7 @@ func (x *PeerInfo) String() string {
 func (*PeerInfo) ProtoMessage() {}
 
 func (x *PeerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[10]
+	mi := &file_monad_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +545,7 @@ func (x *PeerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PeerInfo.ProtoReflect.Descriptor instead.
 func (*PeerInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{10}
+	return file_monad_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *PeerInfo) GetPeerId() string {
@@ -578,7 +578,7 @@ type BootstrapRequest struct {
 
 func (x *BootstrapRequest) Reset() {
 	*x = BootstrapRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[11]
+	mi := &file_monad_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -590,7 +590,7 @@ func (x *BootstrapRequest) String() string {
 func (*BootstrapRequest) ProtoMessage() {}
 
 func (x *BootstrapRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[11]
+	mi := &file_monad_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -603,7 +603,7 @@ func (x *BootstrapRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BootstrapRequest.ProtoReflect.Descriptor instead.
 func (*BootstrapRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{11}
+	return file_monad_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *BootstrapRequest) GetMultiaddr() string {
@@ -624,7 +624,7 @@ type BootstrapResponse struct {
 
 func (x *BootstrapResponse) Reset() {
 	*x = BootstrapResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[12]
+	mi := &file_monad_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +636,7 @@ func (x *BootstrapResponse) String() string {
 func (*BootstrapResponse) ProtoMessage() {}
 
 func (x *BootstrapResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[12]
+	mi := &file_monad_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +649,7 @@ func (x *BootstrapResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BootstrapResponse.ProtoReflect.Descriptor instead.
 func (*BootstrapResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{12}
+	return file_monad_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *BootstrapResponse) GetSuccess() bool {
@@ -681,7 +681,7 @@ type IdentityRequest struct {
 
 func (x *IdentityRequest) Reset() {
 	*x = IdentityRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[13]
+	mi := &file_monad_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -693,7 +693,7 @@ func (x *IdentityRequest) String() string {
 func (*IdentityRequest) ProtoMessage() {}
 
 func (x *IdentityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[13]
+	mi := &file_monad_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -706,7 +706,7 @@ func (x *IdentityRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdentityRequest.ProtoReflect.Descriptor instead.
 func (*IdentityRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{13}
+	return file_monad_proto_rawDescGZIP(), []int{13}
 }
 
 type IdentityResponse struct {
@@ -720,7 +720,7 @@ type IdentityResponse struct {
 
 func (x *IdentityResponse) Reset() {
 	*x = IdentityResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[14]
+	mi := &file_monad_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -732,7 +732,7 @@ func (x *IdentityResponse) String() string {
 func (*IdentityResponse) ProtoMessage() {}
 
 func (x *IdentityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[14]
+	mi := &file_monad_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -745,7 +745,7 @@ func (x *IdentityResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IdentityResponse.ProtoReflect.Descriptor instead.
 func (*IdentityResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{14}
+	return file_monad_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *IdentityResponse) GetPeerId() string {
@@ -778,7 +778,7 @@ type StartHandshakeRequest struct {
 
 func (x *StartHandshakeRequest) Reset() {
 	*x = StartHandshakeRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[15]
+	mi := &file_monad_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -790,7 +790,7 @@ func (x *StartHandshakeRequest) String() string {
 func (*StartHandshakeRequest) ProtoMessage() {}
 
 func (x *StartHandshakeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[15]
+	mi := &file_monad_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,7 +803,7 @@ func (x *StartHandshakeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartHandshakeRequest.ProtoReflect.Descriptor instead.
 func (*StartHandshakeRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{15}
+	return file_monad_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *StartHandshakeRequest) GetPeerId() string {
@@ -823,7 +823,7 @@ type StartHandshakeResponse struct {
 
 func (x *StartHandshakeResponse) Reset() {
 	*x = StartHandshakeResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[16]
+	mi := &file_monad_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -835,7 +835,7 @@ func (x *StartHandshakeResponse) String() string {
 func (*StartHandshakeResponse) ProtoMessage() {}
 
 func (x *StartHandshakeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[16]
+	mi := &file_monad_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -848,7 +848,7 @@ func (x *StartHandshakeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartHandshakeResponse.ProtoReflect.Descriptor instead.
 func (*StartHandshakeResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{16}
+	return file_monad_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *StartHandshakeResponse) GetSessionId() string {
@@ -873,7 +873,7 @@ type ListHandshakesRequest struct {
 
 func (x *ListHandshakesRequest) Reset() {
 	*x = ListHandshakesRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[17]
+	mi := &file_monad_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -885,7 +885,7 @@ func (x *ListHandshakesRequest) String() string {
 func (*ListHandshakesRequest) ProtoMessage() {}
 
 func (x *ListHandshakesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[17]
+	mi := &file_monad_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -898,7 +898,7 @@ func (x *ListHandshakesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHandshakesRequest.ProtoReflect.Descriptor instead.
 func (*ListHandshakesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{17}
+	return file_monad_proto_rawDescGZIP(), []int{17}
 }
 
 type ListHandshakesResponse struct {
@@ -910,7 +910,7 @@ type ListHandshakesResponse struct {
 
 func (x *ListHandshakesResponse) Reset() {
 	*x = ListHandshakesResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[18]
+	mi := &file_monad_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -922,7 +922,7 @@ func (x *ListHandshakesResponse) String() string {
 func (*ListHandshakesResponse) ProtoMessage() {}
 
 func (x *ListHandshakesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[18]
+	mi := &file_monad_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -935,7 +935,7 @@ func (x *ListHandshakesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListHandshakesResponse.ProtoReflect.Descriptor instead.
 func (*ListHandshakesResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{18}
+	return file_monad_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListHandshakesResponse) GetHandshakes() []*HandshakeInfo {
@@ -954,7 +954,7 @@ type GetHandshakeRequest struct {
 
 func (x *GetHandshakeRequest) Reset() {
 	*x = GetHandshakeRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[19]
+	mi := &file_monad_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -966,7 +966,7 @@ func (x *GetHandshakeRequest) String() string {
 func (*GetHandshakeRequest) ProtoMessage() {}
 
 func (x *GetHandshakeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[19]
+	mi := &file_monad_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -979,7 +979,7 @@ func (x *GetHandshakeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHandshakeRequest.ProtoReflect.Descriptor instead.
 func (*GetHandshakeRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{19}
+	return file_monad_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetHandshakeRequest) GetSessionId() string {
@@ -999,7 +999,7 @@ type GetHandshakeResponse struct {
 
 func (x *GetHandshakeResponse) Reset() {
 	*x = GetHandshakeResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[20]
+	mi := &file_monad_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1011,7 +1011,7 @@ func (x *GetHandshakeResponse) String() string {
 func (*GetHandshakeResponse) ProtoMessage() {}
 
 func (x *GetHandshakeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[20]
+	mi := &file_monad_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1024,7 +1024,7 @@ func (x *GetHandshakeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetHandshakeResponse.ProtoReflect.Descriptor instead.
 func (*GetHandshakeResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{20}
+	return file_monad_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetHandshakeResponse) GetHandshake() *HandshakeInfo {
@@ -1056,7 +1056,7 @@ type HandshakeInfo struct {
 
 func (x *HandshakeInfo) Reset() {
 	*x = HandshakeInfo{}
-	mi := &file_api_proto_monad_proto_msgTypes[21]
+	mi := &file_monad_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1068,7 +1068,7 @@ func (x *HandshakeInfo) String() string {
 func (*HandshakeInfo) ProtoMessage() {}
 
 func (x *HandshakeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[21]
+	mi := &file_monad_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1081,7 +1081,7 @@ func (x *HandshakeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandshakeInfo.ProtoReflect.Descriptor instead.
 func (*HandshakeInfo) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{21}
+	return file_monad_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *HandshakeInfo) GetSessionId() string {
@@ -1147,7 +1147,7 @@ type ApproveHandshakeRequest struct {
 
 func (x *ApproveHandshakeRequest) Reset() {
 	*x = ApproveHandshakeRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[22]
+	mi := &file_monad_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1159,7 +1159,7 @@ func (x *ApproveHandshakeRequest) String() string {
 func (*ApproveHandshakeRequest) ProtoMessage() {}
 
 func (x *ApproveHandshakeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[22]
+	mi := &file_monad_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1172,7 +1172,7 @@ func (x *ApproveHandshakeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveHandshakeRequest.ProtoReflect.Descriptor instead.
 func (*ApproveHandshakeRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{22}
+	return file_monad_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ApproveHandshakeRequest) GetSessionId() string {
@@ -1220,7 +1220,7 @@ type ApproveHandshakeResponse struct {
 
 func (x *ApproveHandshakeResponse) Reset() {
 	*x = ApproveHandshakeResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[23]
+	mi := &file_monad_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1232,7 +1232,7 @@ func (x *ApproveHandshakeResponse) String() string {
 func (*ApproveHandshakeResponse) ProtoMessage() {}
 
 func (x *ApproveHandshakeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[23]
+	mi := &file_monad_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1245,7 +1245,7 @@ func (x *ApproveHandshakeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveHandshakeResponse.ProtoReflect.Descriptor instead.
 func (*ApproveHandshakeResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{23}
+	return file_monad_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ApproveHandshakeResponse) GetSuccess() bool {
@@ -1272,7 +1272,7 @@ type RejectHandshakeRequest struct {
 
 func (x *RejectHandshakeRequest) Reset() {
 	*x = RejectHandshakeRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[24]
+	mi := &file_monad_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1284,7 +1284,7 @@ func (x *RejectHandshakeRequest) String() string {
 func (*RejectHandshakeRequest) ProtoMessage() {}
 
 func (x *RejectHandshakeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[24]
+	mi := &file_monad_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1297,7 +1297,7 @@ func (x *RejectHandshakeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectHandshakeRequest.ProtoReflect.Descriptor instead.
 func (*RejectHandshakeRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{24}
+	return file_monad_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *RejectHandshakeRequest) GetSessionId() string {
@@ -1324,7 +1324,7 @@ type RejectHandshakeResponse struct {
 
 func (x *RejectHandshakeResponse) Reset() {
 	*x = RejectHandshakeResponse{}
-	mi := &file_api_proto_monad_proto_msgTypes[25]
+	mi := &file_monad_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1336,7 +1336,7 @@ func (x *RejectHandshakeResponse) String() string {
 func (*RejectHandshakeResponse) ProtoMessage() {}
 
 func (x *RejectHandshakeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[25]
+	mi := &file_monad_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1349,7 +1349,7 @@ func (x *RejectHandshakeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectHandshakeResponse.ProtoReflect.Descriptor instead.
 func (*RejectHandshakeResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{25}
+	return file_monad_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *RejectHandshakeResponse) GetSuccess() bool {
@@ -1374,7 +1374,7 @@ type WatchHandshakesRequest struct {
 
 func (x *WatchHandshakesRequest) Reset() {
 	*x = WatchHandshakesRequest{}
-	mi := &file_api_proto_monad_proto_msgTypes[26]
+	mi := &file_monad_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1386,7 +1386,7 @@ func (x *WatchHandshakesRequest) String() string {
 func (*WatchHandshakesRequest) ProtoMessage() {}
 
 func (x *WatchHandshakesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[26]
+	mi := &file_monad_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1399,7 +1399,7 @@ func (x *WatchHandshakesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchHandshakesRequest.ProtoReflect.Descriptor instead.
 func (*WatchHandshakesRequest) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{26}
+	return file_monad_proto_rawDescGZIP(), []int{26}
 }
 
 type HandshakeEvent struct {
@@ -1415,7 +1415,7 @@ type HandshakeEvent struct {
 
 func (x *HandshakeEvent) Reset() {
 	*x = HandshakeEvent{}
-	mi := &file_api_proto_monad_proto_msgTypes[27]
+	mi := &file_monad_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +1427,7 @@ func (x *HandshakeEvent) String() string {
 func (*HandshakeEvent) ProtoMessage() {}
 
 func (x *HandshakeEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_monad_proto_msgTypes[27]
+	mi := &file_monad_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +1440,7 @@ func (x *HandshakeEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HandshakeEvent.ProtoReflect.Descriptor instead.
 func (*HandshakeEvent) Descriptor() ([]byte, []int) {
-	return file_api_proto_monad_proto_rawDescGZIP(), []int{27}
+	return file_monad_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *HandshakeEvent) GetSessionId() string {
@@ -1478,11 +1478,11 @@ func (x *HandshakeEvent) GetElapsedSeconds() int64 {
 	return 0
 }
 
-var File_api_proto_monad_proto protoreflect.FileDescriptor
+var File_monad_proto protoreflect.FileDescriptor
 
-const file_api_proto_monad_proto_rawDesc = "" +
+const file_monad_proto_rawDesc = "" +
 	"\n" +
-	"\x15api/proto/monad.proto\x12\x05monad\"\x11\n" +
+	"\vmonad.proto\x12\x05monad\"\x11\n" +
 	"\x0fGetMonadRequest\"x\n" +
 	"\x10GetMonadResponse\x12'\n" +
 	"\x0fencrypted_monad\x18\x01 \x01(\fR\x0eencryptedMonad\x12\x18\n" +
@@ -1595,19 +1595,19 @@ const file_api_proto_monad_proto_rawDesc = "" +
 	"\x0fWatchHandshakes\x12\x1d.monad.WatchHandshakesRequest\x1a\x15.monad.HandshakeEvent0\x01B&Z$github.com/mymonad/mymonad/api/protob\x06proto3"
 
 var (
-	file_api_proto_monad_proto_rawDescOnce sync.Once
-	file_api_proto_monad_proto_rawDescData []byte
+	file_monad_proto_rawDescOnce sync.Once
+	file_monad_proto_rawDescData []byte
 )
 
-func file_api_proto_monad_proto_rawDescGZIP() []byte {
-	file_api_proto_monad_proto_rawDescOnce.Do(func() {
-		file_api_proto_monad_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_api_proto_monad_proto_rawDesc), len(file_api_proto_monad_proto_rawDesc)))
+func file_monad_proto_rawDescGZIP() []byte {
+	file_monad_proto_rawDescOnce.Do(func() {
+		file_monad_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_monad_proto_rawDesc), len(file_monad_proto_rawDesc)))
 	})
-	return file_api_proto_monad_proto_rawDescData
+	return file_monad_proto_rawDescData
 }
 
-var file_api_proto_monad_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
-var file_api_proto_monad_proto_goTypes = []any{
+var file_monad_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_monad_proto_goTypes = []any{
 	(*GetMonadRequest)(nil),          // 0: monad.GetMonadRequest
 	(*GetMonadResponse)(nil),         // 1: monad.GetMonadResponse
 	(*WatchMonadRequest)(nil),        // 2: monad.WatchMonadRequest
@@ -1637,7 +1637,7 @@ var file_api_proto_monad_proto_goTypes = []any{
 	(*WatchHandshakesRequest)(nil),   // 26: monad.WatchHandshakesRequest
 	(*HandshakeEvent)(nil),           // 27: monad.HandshakeEvent
 }
-var file_api_proto_monad_proto_depIdxs = []int32{
+var file_monad_proto_depIdxs = []int32{
 	10, // 0: monad.PeersResponse.peers:type_name -> monad.PeerInfo
 	21, // 1: monad.ListHandshakesResponse.handshakes:type_name -> monad.HandshakeInfo
 	21, // 2: monad.GetHandshakeResponse.handshake:type_name -> monad.HandshakeInfo
@@ -1674,26 +1674,26 @@ var file_api_proto_monad_proto_depIdxs = []int32{
 	0,  // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_api_proto_monad_proto_init() }
-func file_api_proto_monad_proto_init() {
-	if File_api_proto_monad_proto != nil {
+func init() { file_monad_proto_init() }
+func file_monad_proto_init() {
+	if File_monad_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_monad_proto_rawDesc), len(file_api_proto_monad_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_monad_proto_rawDesc), len(file_monad_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
-		GoTypes:           file_api_proto_monad_proto_goTypes,
-		DependencyIndexes: file_api_proto_monad_proto_depIdxs,
-		MessageInfos:      file_api_proto_monad_proto_msgTypes,
+		GoTypes:           file_monad_proto_goTypes,
+		DependencyIndexes: file_monad_proto_depIdxs,
+		MessageInfos:      file_monad_proto_msgTypes,
 	}.Build()
-	File_api_proto_monad_proto = out.File
-	file_api_proto_monad_proto_goTypes = nil
-	file_api_proto_monad_proto_depIdxs = nil
+	File_monad_proto = out.File
+	file_monad_proto_goTypes = nil
+	file_monad_proto_depIdxs = nil
 }

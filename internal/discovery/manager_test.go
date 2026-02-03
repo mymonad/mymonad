@@ -414,3 +414,90 @@ func mustParseAddrInfo(t *testing.T, addr string) peer.AddrInfo {
 
 	return *info
 }
+
+// ============================================================
+// ZK Service Integration Tests
+// ============================================================
+
+func TestManagerSetZKService(t *testing.T) {
+	m := NewManager(ManagerConfig{})
+
+	// Initially nil
+	if m.GetZKService() != nil {
+		t.Error("GetZKService should return nil initially")
+	}
+
+	// We can't create a real ZKService without gnark dependencies in tests,
+	// so we test that SetZKService works with nil
+	m.SetZKService(nil)
+	if m.GetZKService() != nil {
+		t.Error("GetZKService should return nil after SetZKService(nil)")
+	}
+}
+
+func TestManagerShouldRequireZK_NoService(t *testing.T) {
+	m := NewManager(ManagerConfig{})
+
+	peerRecord := &BucketRecord{
+		ZKCapability: &ZKCapability{
+			Supported:        true,
+			ProofSystem:      "plonk-bn254",
+			MaxSignatureBits: 256,
+		},
+	}
+
+	result := m.ShouldRequireZK(peerRecord)
+	if result != ZKNotRequired {
+		t.Errorf("ShouldRequireZK() = %v, want ZKNotRequired when no ZK service", result)
+	}
+}
+
+func TestManagerShouldRequireZK_NilRecord(t *testing.T) {
+	m := NewManager(ManagerConfig{})
+
+	result := m.ShouldRequireZK(nil)
+	if result != ZKNotRequired {
+		t.Errorf("ShouldRequireZK(nil) = %v, want ZKNotRequired", result)
+	}
+}
+
+func TestManagerShouldRequireZK_NoCapability(t *testing.T) {
+	m := NewManager(ManagerConfig{})
+
+	peerRecord := &BucketRecord{
+		ZKCapability: nil, // Peer doesn't advertise ZK
+	}
+
+	result := m.ShouldRequireZK(peerRecord)
+	if result != ZKNotRequired {
+		t.Errorf("ShouldRequireZK() = %v, want ZKNotRequired when peer has no capability", result)
+	}
+}
+
+func TestManagerCreateLocalZKCapability_NoService(t *testing.T) {
+	m := NewManager(ManagerConfig{})
+
+	cap := m.CreateLocalZKCapability()
+	if cap != nil {
+		t.Error("CreateLocalZKCapability should return nil when no ZK service")
+	}
+}
+
+func TestZKRequirementResultConstants(t *testing.T) {
+	// Verify the constants have distinct values
+	values := map[ZKRequirementResult]string{
+		ZKNotRequired: "ZKNotRequired",
+		ZKRequired:    "ZKRequired",
+		ZKSkipPeer:    "ZKSkipPeer",
+	}
+
+	if len(values) != 3 {
+		t.Error("ZKRequirementResult constants should have 3 distinct values")
+	}
+
+	// Verify ZKNotRequired is the zero value (default)
+	var defaultResult ZKRequirementResult
+	if defaultResult != ZKNotRequired {
+		t.Error("ZKNotRequired should be the zero value")
+	}
+}

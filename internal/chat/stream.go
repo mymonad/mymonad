@@ -190,8 +190,13 @@ func (s *ChatSession) readLoop() {
 // handleStreamClose handles stream closure.
 // It logs the stream closure and calls Cleanup() if the session was open.
 func (s *ChatSession) handleStreamClose() {
+	s.mu.RLock()
+	peerID := s.peerID
+	s.mu.RUnlock()
+
 	slog.Debug("chat stream closed",
 		"session_id", fmt.Sprintf("%x", s.sessionID),
+		"peer", peerID,
 	)
 
 	// Cleanup will handle idempotency (checking isOpen)
