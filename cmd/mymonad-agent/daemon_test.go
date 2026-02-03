@@ -1503,3 +1503,69 @@ func createTestMonad(t *testing.T, dimensions int) *monad.Monad {
 
 	return m
 }
+
+// ============================================================================
+// Chat Service Integration Tests
+// ============================================================================
+
+func TestDaemon_ChatServiceInitialized(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify chat service is initialized
+	chatSvc := d.GetChatService()
+	if chatSvc == nil {
+		t.Fatal("ChatService should be initialized")
+	}
+}
+
+func TestDaemon_ChatServiceAccessor(t *testing.T) {
+	tmpDir := t.TempDir()
+	sockPath := filepath.Join(tmpDir, "agent.sock")
+	identityPath := filepath.Join(tmpDir, "identity.key")
+
+	cfg := DaemonConfig{
+		SocketPath:          sockPath,
+		IdentityPath:        identityPath,
+		Port:                0,
+		DNSSeeds:            []string{},
+		Bootstrap:           []string{},
+		MDNSEnabled:         false,
+		SimilarityThreshold: 0.85,
+		ChallengeDifficulty: 16,
+		IngestSocket:        filepath.Join(tmpDir, "ingest.sock"),
+	}
+
+	d, err := NewDaemon(cfg)
+	if err != nil {
+		t.Fatalf("NewDaemon() error = %v", err)
+	}
+	defer d.Close()
+
+	// Verify accessor returns the same instance each time
+	chatSvc1 := d.GetChatService()
+	chatSvc2 := d.GetChatService()
+
+	if chatSvc1 != chatSvc2 {
+		t.Error("GetChatService should return the same instance")
+	}
+}

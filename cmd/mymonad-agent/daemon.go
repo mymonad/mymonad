@@ -14,6 +14,7 @@ import (
 
 	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/internal/agent"
+	"github.com/mymonad/mymonad/internal/chat"
 	"github.com/mymonad/mymonad/internal/config"
 	"github.com/mymonad/mymonad/internal/crypto"
 	"github.com/mymonad/mymonad/internal/discovery"
@@ -131,10 +132,13 @@ type Daemon struct {
 	handshakeManager *handshake.Manager
 	handshakeHandler *handshake.StreamHandler
 
+	// Chat service for encrypted human-to-human communication
+	chatService *chat.ChatService
+
 	// LSH discovery components
-	lshDiscovery   *discovery.LSHDiscoveryManager
-	lshGenerator   *lsh.Generator
-	lastMonadHash  [32]byte // Hash of last processed Monad for change detection
+	lshDiscovery    *discovery.LSHDiscoveryManager
+	lshGenerator    *lsh.Generator
+	lastMonadHash   [32]byte // Hash of last processed Monad for change detection
 	lastMonadHashMu sync.RWMutex
 
 	// State tracking
@@ -196,6 +200,23 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 	handshakeHandler := handshake.NewStreamHandler(handshakeMgr, logger)
 	handshakeHandler.Register(host.Host())
 
+	// Create chat service with adapter for handshake manager
+	// The host satisfies the StreamOpener interface
+	chatSvc := chat.NewChatService(host.Host(), newHandshakeManagerAdapter(handshakeMgr))
+
+	// Register chat stream handler for incoming chat connections
+	host.Host().SetStreamHandler(chat.ChatProtocolID, func(s network.Stream) {
+		// For now, log incoming chat streams
+		// In a full implementation, this would be handled by the chat service
+		logger.Info("received incoming chat stream",
+			"peer", s.Conn().RemotePeer().String(),
+			"protocol", s.Protocol(),
+		)
+		// Reset the stream since we're not handling incoming streams yet
+		// This will be implemented in a future task
+		s.Reset()
+	})
+
 	// Create LSH discovery manager for similarity-based peer discovery
 	lshDiscoveryMgr := discovery.NewLSHDiscoveryManager(discovery.DefaultLSHDiscoveryConfig())
 
@@ -210,6 +231,7 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 		discovery:        discMgr,
 		handshakeManager: handshakeMgr,
 		handshakeHandler: handshakeHandler,
+		chatService:      chatSvc,
 		lshDiscovery:     lshDiscoveryMgr,
 		lshGenerator:     lshGen,
 		logger:           logger,
@@ -420,6 +442,12 @@ func (d *Daemon) computeMonadHash(m *monad.Monad) [32]byte {
 // This can be used for testing or advanced integrations.
 func (d *Daemon) GetLSHDiscoveryManager() *discovery.LSHDiscoveryManager {
 	return d.lshDiscovery
+}
+
+// GetChatService returns the chat service for external access.
+// This allows other components to access the chat service for encrypted messaging.
+func (d *Daemon) GetChatService() *chat.ChatService {
+	return d.chatService
 }
 
 // shutdownTimeout is the maximum time to wait for graceful shutdown.
