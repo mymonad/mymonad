@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,10 +14,15 @@ import (
 
 	pb "github.com/mymonad/mymonad/api/proto"
 	"github.com/mymonad/mymonad/internal/agent"
+	"github.com/mymonad/mymonad/internal/antispam"
+	"github.com/mymonad/mymonad/internal/chat"
 	"github.com/mymonad/mymonad/internal/config"
 	"github.com/mymonad/mymonad/internal/crypto"
 	"github.com/mymonad/mymonad/internal/discovery"
 	"github.com/mymonad/mymonad/internal/handshake"
+	"github.com/mymonad/mymonad/internal/zkproof"
+	"github.com/mymonad/mymonad/pkg/lsh"
+	"github.com/mymonad/mymonad/pkg/monad"
 
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -57,6 +63,24 @@ type DaemonConfig struct {
 	SimilarityThreshold float64
 	ChallengeDifficulty int
 	IngestSocket        string // To fetch Monad from ingest daemon
+	ZK                  ZKDaemonConfig
+}
+
+// ZKDaemonConfig holds ZK proof configuration for the daemon.
+// The ZK service is optional and disabled by default for privacy opt-in.
+type ZKDaemonConfig struct {
+	// Enabled determines whether this node advertises and accepts ZK proofs.
+	Enabled bool
+	// RequireZK when true rejects peers that do not provide ZK proofs.
+	RequireZK bool
+	// PreferZK when true prefers ZK-capable peers but accepts plaintext fallback.
+	PreferZK bool
+	// ProofTimeout is the maximum time to wait for proof operations.
+	ProofTimeout time.Duration
+	// MaxDistance is the maximum Hamming distance for ZK proofs.
+	MaxDistance uint32
+	// ProverWorkers is the number of parallel prover workers.
+	ProverWorkers int
 }
 
 // Validate checks that all required configuration fields are set.
@@ -95,8 +119,36 @@ func DefaultDaemonConfig() DaemonConfig {
 		SimilarityThreshold: defaults.Protocol.SimilarityThreshold,
 		ChallengeDifficulty: defaults.Protocol.ChallengeDifficulty,
 		IngestSocket:        paths.IngestSocket,
+		ZK:                  DefaultZKDaemonConfig(),
 	}
 }
+
+// DefaultZKDaemonConfig returns sensible defaults for ZK configuration.
+// ZK is disabled by default (opt-in for privacy).
+func DefaultZKDaemonConfig() ZKDaemonConfig {
+	zkDefaults := zkproof.DefaultZKConfig()
+	return ZKDaemonConfig{
+		Enabled:       zkDefaults.Enabled,       // false - opt-in
+		RequireZK:     zkDefaults.RequireZK,     // false
+		PreferZK:      zkDefaults.PreferZK,      // true
+		ProofTimeout:  zkDefaults.ProofTimeout,  // 30s
+		MaxDistance:   zkDefaults.MaxDistance,   // 64
+		ProverWorkers: zkDefaults.ProverWorkers, // 2
+	}
+}
+
+// LSH signature generation constants
+const (
+	// LSHNumHashes is the number of hash bits for LSH signatures.
+	// 256 bits provides good accuracy for similarity estimation.
+	LSHNumHashes = 256
+	// LSHDimensions is the expected Monad vector dimensions.
+	// Must match the embedding model dimensions (384 for most models).
+	LSHDimensions = 384
+	// LSHSeed is the deterministic seed for hyperplane generation.
+	// All nodes must use the same seed for compatible signatures.
+	LSHSeed = 42
+)
 
 // Daemon is the agent daemon that participates in the P2P network.
 type Daemon struct {
@@ -114,6 +166,22 @@ type Daemon struct {
 	// Handshake protocol components
 	handshakeManager *handshake.Manager
 	handshakeHandler *handshake.StreamHandler
+
+	// Anti-spam service for PoW-based protection
+	antiSpam *antispam.AntiSpamService
+
+	// Chat service for encrypted human-to-human communication
+	chatService *chat.ChatService
+
+	// ZK proof service for privacy-preserving similarity verification
+	zkService *zkproof.ZKService
+	zkHandler *zkproof.Handler
+
+	// LSH discovery components
+	lshDiscovery    *discovery.LSHDiscoveryManager
+	lshGenerator    *lsh.Generator
+	lastMonadHash   [32]byte // Hash of last processed Monad for change detection
+	lastMonadHashMu sync.RWMutex
 
 	// State tracking
 	state   string
@@ -174,6 +242,29 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 	handshakeHandler := handshake.NewStreamHandler(handshakeMgr, logger)
 	handshakeHandler.Register(host.Host())
 
+	// Create chat service with adapter for handshake manager
+	// The host satisfies the StreamOpener interface
+	chatSvc := chat.NewChatService(host.Host(), newHandshakeManagerAdapter(handshakeMgr))
+
+	// Register chat stream handler for incoming chat connections
+	host.Host().SetStreamHandler(chat.ChatProtocolID, func(s network.Stream) {
+		// For now, log incoming chat streams
+		// In a full implementation, this would be handled by the chat service
+		logger.Info("received incoming chat stream",
+			"peer", s.Conn().RemotePeer().String(),
+			"protocol", s.Protocol(),
+		)
+		// Reset the stream since we're not handling incoming streams yet
+		// This will be implemented in a future task
+		s.Reset()
+	})
+
+	// Create LSH discovery manager for similarity-based peer discovery
+	lshDiscoveryMgr := discovery.NewLSHDiscoveryManager(discovery.DefaultLSHDiscoveryConfig())
+
+	// Create LSH signature generator for Monad signatures
+	lshGen := lsh.NewGenerator(LSHNumHashes, LSHDimensions, LSHSeed)
+
 	d := &Daemon{
 		cfg:              cfg,
 		identity:         identity,
@@ -182,11 +273,100 @@ func NewDaemon(cfg DaemonConfig) (*Daemon, error) {
 		discovery:        discMgr,
 		handshakeManager: handshakeMgr,
 		handshakeHandler: handshakeHandler,
+		chatService:      chatSvc,
+		lshDiscovery:     lshDiscoveryMgr,
+		lshGenerator:     lshGen,
 		logger:           logger,
 		state:            StateIdle,
 	}
 
+	// Initialize anti-spam service
+	d.initAntiSpam()
+
+	// Initialize ZK service (optional, fails gracefully if disabled)
+	if err := d.initZKService(); err != nil {
+		logger.Warn("ZK service initialization failed, continuing without ZK",
+			"error", err,
+		)
+		// Don't fail daemon creation - ZK is optional
+	}
+
 	return d, nil
+}
+
+// initAntiSpam initializes the anti-spam service and wires it to the handshake manager.
+// The anti-spam service provides load-adaptive PoW challenges to prevent spam attacks.
+func (d *Daemon) initAntiSpam() {
+	// Use default configuration for anti-spam service
+	config := antispam.DefaultDifficultyConfig()
+
+	d.antiSpam = antispam.NewAntiSpamService(config)
+	d.handshakeManager.SetAntiSpamService(d.antiSpam)
+
+	// Log tier changes for monitoring
+	d.antiSpam.SetOnTierChange(func(tier antispam.DifficultyTier) {
+		d.logger.Warn("anti-spam difficulty changed",
+			"tier", tier.String(),
+			"bits", tier.Bits(),
+		)
+	})
+}
+
+// initZKService initializes the ZK proof service for privacy-preserving discovery.
+// The ZK service is optional - if disabled or initialization fails, the daemon
+// continues without ZK functionality.
+//
+// When enabled, this method:
+// 1. Creates the ZK service (compiles circuit if enabled)
+// 2. Wires the service to the discovery manager
+// 3. Registers the ZK stream handler for incoming proof exchanges
+func (d *Daemon) initZKService() error {
+	// Build ZK config from daemon config
+	zkCfg := zkproof.ZKConfig{
+		Enabled:       d.cfg.ZK.Enabled,
+		RequireZK:     d.cfg.ZK.RequireZK,
+		PreferZK:      d.cfg.ZK.PreferZK,
+		ProofTimeout:  d.cfg.ZK.ProofTimeout,
+		MaxDistance:   d.cfg.ZK.MaxDistance,
+		ProverWorkers: d.cfg.ZK.ProverWorkers,
+	}
+
+	// Create ZK service
+	svc, err := zkproof.NewZKService(zkCfg)
+	if err != nil {
+		return fmt.Errorf("create ZK service: %w", err)
+	}
+	d.zkService = svc
+
+	// Wire to discovery manager for ZK-aware peer selection
+	if d.discovery != nil {
+		d.discovery.SetZKService(svc)
+	}
+
+	// Register stream handler if ZK is enabled
+	if svc.IsEnabled() {
+		d.zkHandler = zkproof.NewHandler(svc, d.getLocalSignature)
+		d.zkHandler.RegisterStreamHandler(d.host.Host())
+
+		d.logger.Info("ZK proof service initialized",
+			"require_zk", zkCfg.RequireZK,
+			"prefer_zk", zkCfg.PreferZK,
+			"max_distance", zkCfg.MaxDistance,
+		)
+	} else {
+		d.logger.Debug("ZK proof service disabled")
+	}
+
+	return nil
+}
+
+// getLocalSignature returns the local LSH signature for ZK proof generation.
+// Returns nil if no signature is available.
+func (d *Daemon) getLocalSignature() []byte {
+	if d.lshDiscovery != nil {
+		return d.lshDiscovery.GetLocalSignature()
+	}
+	return nil
 }
 
 // loadOrGenerateIdentity loads an existing identity or generates a new one.
@@ -268,6 +448,9 @@ func (d *Daemon) Run(ctx context.Context) error {
 	// Start handshake cleanup loop
 	go d.handshakeManager.CleanupLoop(ctx, 5*time.Minute)
 
+	// Start LSH discovery loop for similarity-based peer discovery
+	go d.lshDiscovery.DiscoveryLoop(ctx)
+
 	d.logger.Info("agent daemon running",
 		"peer_id", d.host.ID().String(),
 		"did", d.identity.DID,
@@ -322,6 +505,98 @@ func (d *Daemon) discoverPeers(ctx context.Context) {
 	}
 }
 
+// HandleMonadUpdated is called when the Monad is updated to regenerate the LSH signature.
+// It checks if the Monad has changed since the last update and regenerates the signature
+// if necessary. This enables similarity-based peer discovery.
+//
+// The method computes a hash of the Monad to detect changes, avoiding unnecessary
+// signature regeneration for unchanged Monads.
+func (d *Daemon) HandleMonadUpdated(newMonad *monad.Monad) {
+	if newMonad == nil {
+		d.logger.Warn("HandleMonadUpdated called with nil Monad")
+		return
+	}
+
+	// Compute hash of Monad for change detection
+	newHash := d.computeMonadHash(newMonad)
+
+	// Check if signature needs regeneration
+	d.lastMonadHashMu.RLock()
+	needsRegen := newHash != d.lastMonadHash
+	d.lastMonadHashMu.RUnlock()
+
+	if !needsRegen {
+		d.logger.Debug("Monad unchanged, skipping signature regeneration")
+		return
+	}
+
+	// Generate new LSH signature from Monad
+	monadSig := d.lshGenerator.Generate(newMonad)
+	if monadSig == nil {
+		d.logger.Warn("failed to generate LSH signature from Monad",
+			"monad_dimensions", newMonad.Dimensions(),
+			"expected_dimensions", LSHDimensions,
+		)
+		return
+	}
+
+	// Update the LSH discovery manager with the new signature
+	d.lshDiscovery.SetLocalSignature(monadSig.Signature.Bits)
+
+	// Update the stored hash
+	d.lastMonadHashMu.Lock()
+	d.lastMonadHash = newHash
+	d.lastMonadHashMu.Unlock()
+
+	d.logger.Info("LSH signature updated from Monad",
+		"monad_version", newMonad.GetVersion(),
+		"monad_doc_count", newMonad.GetDocCount(),
+		"signature_size", monadSig.Signature.Size,
+	)
+}
+
+// computeMonadHash computes a SHA-256 hash of the Monad's binary representation.
+// This is used for change detection to avoid unnecessary signature regeneration.
+func (d *Daemon) computeMonadHash(m *monad.Monad) [32]byte {
+	data, err := m.MarshalBinary()
+	if err != nil {
+		// Return zero hash on error - will cause regeneration
+		return [32]byte{}
+	}
+	return sha256.Sum256(data)
+}
+
+// GetLSHDiscoveryManager returns the LSH discovery manager for external access.
+// This can be used for testing or advanced integrations.
+func (d *Daemon) GetLSHDiscoveryManager() *discovery.LSHDiscoveryManager {
+	return d.lshDiscovery
+}
+
+// GetChatService returns the chat service for external access.
+// This allows other components to access the chat service for encrypted messaging.
+func (d *Daemon) GetChatService() *chat.ChatService {
+	return d.chatService
+}
+
+// GetAntiSpamService returns the anti-spam service for external access.
+// This can be used for testing or monitoring.
+func (d *Daemon) GetAntiSpamService() *antispam.AntiSpamService {
+	return d.antiSpam
+}
+
+// GetZKService returns the ZK proof service for external access.
+// Returns nil if ZK proofs are not enabled.
+// This can be used for testing or advanced integrations.
+func (d *Daemon) GetZKService() *zkproof.ZKService {
+	return d.zkService
+}
+
+// GetZKHandler returns the ZK stream handler for external access.
+// Returns nil if ZK proofs are not enabled.
+func (d *Daemon) GetZKHandler() *zkproof.Handler {
+	return d.zkHandler
+}
+
 // shutdownTimeout is the maximum time to wait for graceful shutdown.
 const shutdownTimeout = 5 * time.Second
 
@@ -344,6 +619,11 @@ func (d *Daemon) shutdown() error {
 			d.logger.Warn("gRPC graceful stop timed out, forcing stop")
 			d.server.Stop()
 		}
+	}
+
+	// Stop anti-spam service
+	if d.antiSpam != nil {
+		d.antiSpam.Stop()
 	}
 
 	// Remove socket file
@@ -384,6 +664,11 @@ func (d *Daemon) shutdown() error {
 // This is useful for tests that don't call Run().
 func (d *Daemon) Close() error {
 	var errs []error
+
+	// Stop anti-spam service
+	if d.antiSpam != nil {
+		d.antiSpam.Stop()
+	}
 
 	if d.dht != nil {
 		if err := d.dht.Close(); err != nil {

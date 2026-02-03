@@ -44,8 +44,9 @@ type Session struct {
 	LastActivity time.Time
 
 	// Sensitive data - zeroed on cleanup
-	LocalMonad []byte
-	PeerMonad  []byte
+	LocalMonad   []byte
+	PeerMonad    []byte
+	SharedSecret []byte // Shared secret derived during handshake (for chat encryption)
 
 	// Deal breaker configuration
 	DealBreakerConfig *DealBreakerConfig
@@ -93,6 +94,11 @@ func (s *Session) Cleanup() {
 		s.PeerMonad[i] = 0
 	}
 	s.PeerMonad = nil
+
+	for i := range s.SharedSecret {
+		s.SharedSecret[i] = 0
+	}
+	s.SharedSecret = nil
 
 	// Zero identity payloads (security: zero-persistence constraint)
 	if s.IdentityPayload != nil {
@@ -336,4 +342,33 @@ func (s *Session) GetStream() network.Stream {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.Stream
+}
+
+// SetSharedSecret sets the shared secret (thread-safe).
+// The shared secret is derived during the handshake and used for chat encryption.
+func (s *Session) SetSharedSecret(secret []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.SharedSecret = secret
+}
+
+// GetSharedSecret returns a copy of the shared secret (thread-safe).
+// Returns nil if no shared secret has been established.
+func (s *Session) GetSharedSecret() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.SharedSecret == nil {
+		return nil
+	}
+	result := make([]byte, len(s.SharedSecret))
+	copy(result, s.SharedSecret)
+	return result
+}
+
+// GetPeerIDValue returns the peer ID (thread-safe).
+// This is used by the chat service adapter.
+func (s *Session) GetPeerIDValue() peer.ID {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.PeerID
 }

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/mymonad/mymonad/internal/config"
 )
@@ -138,6 +139,7 @@ func buildConfig(configPath string, port int, bootstrap, dnsSeeds []string, mdns
 			SimilarityThreshold: fileCfg.Protocol.SimilarityThreshold,
 			ChallengeDifficulty: fileCfg.Protocol.ChallengeDifficulty,
 			IngestSocket:        paths.IngestSocket,
+			ZK:                  mapZKConfig(fileCfg.ZK),
 		}
 	} else {
 		// Start with defaults
@@ -178,4 +180,32 @@ func buildConfig(configPath string, port int, bootstrap, dnsSeeds []string, mdns
 	}
 
 	return cfg, nil
+}
+
+// mapZKConfig converts a config.ZKConfig to a ZKDaemonConfig.
+func mapZKConfig(zkCfg config.ZKConfig) ZKDaemonConfig {
+	// Use defaults for zero values
+	proofTimeout := time.Duration(zkCfg.ProofTimeoutSeconds) * time.Second
+	if proofTimeout == 0 {
+		proofTimeout = 30 * time.Second
+	}
+
+	maxDistance := zkCfg.MaxDistance
+	if maxDistance == 0 {
+		maxDistance = 64
+	}
+
+	proverWorkers := zkCfg.ProverWorkers
+	if proverWorkers == 0 {
+		proverWorkers = 2
+	}
+
+	return ZKDaemonConfig{
+		Enabled:       zkCfg.Enabled,
+		RequireZK:     zkCfg.RequireZK,
+		PreferZK:      zkCfg.PreferZK,
+		ProofTimeout:  proofTimeout,
+		MaxDistance:   maxDistance,
+		ProverWorkers: proverWorkers,
+	}
 }

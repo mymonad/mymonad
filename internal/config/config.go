@@ -103,6 +103,34 @@ type AgentConfig struct {
 	Discovery DiscoveryConfig `toml:"discovery"`
 	Protocol  ProtocolConfig  `toml:"protocol"`
 	Storage   AgentStorage    `toml:"storage"`
+	ZK        ZKConfig        `toml:"zk"`
+}
+
+// ZKConfig holds zero-knowledge proof settings for privacy-preserving discovery.
+type ZKConfig struct {
+	// Enabled determines whether this node advertises and accepts ZK proofs.
+	// Default: false (opt-in for privacy)
+	Enabled bool `toml:"enabled"`
+
+	// RequireZK when true rejects peers that do not provide ZK proofs.
+	// Default: false
+	RequireZK bool `toml:"require_zk"`
+
+	// PreferZK when true prefers ZK-capable peers but accepts plaintext fallback.
+	// Default: true
+	PreferZK bool `toml:"prefer_zk"`
+
+	// ProofTimeoutSeconds is the maximum time to wait for proof operations.
+	// Default: 30
+	ProofTimeoutSeconds int `toml:"proof_timeout_seconds"`
+
+	// MaxDistance is the maximum Hamming distance for ZK proofs (25% of 256 = 64).
+	// Default: 64
+	MaxDistance uint32 `toml:"max_distance"`
+
+	// ProverWorkers is the number of parallel prover workers.
+	// Default: 2
+	ProverWorkers int `toml:"prover_workers"`
 }
 
 // NetworkConfig holds P2P network settings.
@@ -170,6 +198,20 @@ func DefaultAgentConfig() AgentConfig {
 			IdentityPath: paths.IdentityPath,
 			PeersCache:   paths.PeersCache,
 		},
+		ZK: DefaultZKConfig(),
+	}
+}
+
+// DefaultZKConfig returns sensible defaults for ZK proof configuration.
+// ZK is disabled by default (opt-in for privacy).
+func DefaultZKConfig() ZKConfig {
+	return ZKConfig{
+		Enabled:             false, // Opt-in for privacy
+		RequireZK:           false,
+		PreferZK:            true, // Prefer ZK when both parties support it
+		ProofTimeoutSeconds: 30,
+		MaxDistance:         64, // 25% of 256 bits
+		ProverWorkers:       2,
 	}
 }
 

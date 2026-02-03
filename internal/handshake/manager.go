@@ -8,6 +8,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/mymonad/mymonad/internal/antispam"
 	"github.com/mymonad/mymonad/pkg/protocol"
 )
 
@@ -25,6 +26,9 @@ type Manager struct {
 	cfg         ManagerConfig
 	sessions    map[string]*Session
 	peerHistory map[peer.ID]time.Time
+
+	// Anti-spam service for PoW-based attestation
+	antiSpam *antispam.AntiSpamService
 
 	// Event subscribers
 	eventsMu    sync.RWMutex
@@ -242,4 +246,20 @@ func (m *Manager) cleanupStaleSessions(staleAfter time.Duration) {
 			delete(m.sessions, id)
 		}
 	}
+}
+
+// SetAntiSpamService sets the AntiSpamService for PoW-based attestation.
+// When set, the handshake protocol will use the new protobuf-based PoW
+// challenge/response mechanism instead of the legacy hashcash format.
+func (m *Manager) SetAntiSpamService(as *antispam.AntiSpamService) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.antiSpam = as
+}
+
+// GetAntiSpamService returns the configured AntiSpamService, or nil if not set.
+func (m *Manager) GetAntiSpamService() *antispam.AntiSpamService {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.antiSpam
 }

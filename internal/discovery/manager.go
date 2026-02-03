@@ -10,6 +10,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/mymonad/mymonad/internal/zkproof"
 )
 
 // ManagerConfig holds configuration for the discovery Manager.
@@ -38,9 +39,10 @@ type ManagerConfig struct {
 // 3. mDNS for local network discovery (handled separately)
 // 4. DHT peer exchange (handled by libp2p separately)
 type Manager struct {
-	config   ManagerConfig
-	resolver *DNSADDRResolver
-	logger   *slog.Logger
+	config    ManagerConfig
+	resolver  *DNSADDRResolver
+	logger    *slog.Logger
+	zkService *zkproof.ZKService
 }
 
 // NewManager creates a new discovery Manager with the given configuration.
@@ -177,4 +179,89 @@ func (m *Manager) multiaddrsToAddrInfos(addrs []multiaddr.Multiaddr) []peer.Addr
 	}
 
 	return result
+}
+
+// SetZKService sets the ZK proof service for privacy-preserving discovery.
+// When set, the manager can require or prefer ZK proofs from discovered peers.
+// The ZK service is optional; if nil, ZK functionality is disabled.
+func (m *Manager) SetZKService(svc *zkproof.ZKService) {
+	m.zkService = svc
+}
+
+// GetZKService returns the current ZK service, or nil if not set.
+func (m *Manager) GetZKService() *zkproof.ZKService {
+	return m.zkService
+}
+
+// ZKRequirementResult describes the ZK requirement decision for a peer.
+type ZKRequirementResult int
+
+const (
+	// ZKNotRequired indicates ZK proof is not required (proceed with plaintext).
+	ZKNotRequired ZKRequirementResult = iota
+	// ZKRequired indicates ZK proof is required and peer supports it.
+	ZKRequired
+	// ZKSkipPeer indicates the peer should be skipped (ZK required but not supported).
+	ZKSkipPeer
+)
+
+// ShouldRequireZK determines the ZK requirement for a peer based on their
+// advertised ZK capability and this node's ZK configuration.
+//
+// Returns:
+//   - ZKNotRequired: Proceed without ZK (service disabled, or not required/preferred)
+//   - ZKRequired: ZK proof required and peer supports it
+//   - ZKSkipPeer: Peer should be skipped (ZK required but peer doesn't support it)
+//
+// Decision logic:
+//  1. If ZK service is nil or disabled, return ZKNotRequired
+//  2. If this node requires ZK:
+//     - If peer doesn't support ZK, return ZKSkipPeer
+//     - If peer supports ZK, return ZKRequired
+//  3. If this node prefers ZK and peer supports it, return ZKRequired
+//  4. Otherwise, return ZKNotRequired (fallback to plaintext)
+func (m *Manager) ShouldRequireZK(peerRecord *BucketRecord) ZKRequirementResult {
+	// No ZK service = no ZK required
+	if m.zkService == nil || !m.zkService.IsEnabled() {
+		return ZKNotRequired
+	}
+
+	// Check if peer supports ZK
+	peerSupportsZK := peerRecord != nil &&
+		peerRecord.ZKCapability != nil &&
+		peerRecord.ZKCapability.Supported
+
+	// If we require ZK, peer must support it
+	if m.zkService.RequiresZK() {
+		if !peerSupportsZK {
+			m.logger.Debug("skipping peer: ZK required but not supported",
+				"peer", peerRecord.PeerID,
+			)
+			return ZKSkipPeer
+		}
+		return ZKRequired
+	}
+
+	// If we prefer ZK and peer supports it, use it
+	if m.zkService.PrefersZK() && peerSupportsZK {
+		return ZKRequired
+	}
+
+	// Fall back to plaintext
+	return ZKNotRequired
+}
+
+// CreateLocalZKCapability returns a ZKCapability advertising this node's
+// ZK capability, or nil if ZK is not enabled.
+// Use this when creating BucketRecords to publish to the DHT.
+func (m *Manager) CreateLocalZKCapability() *ZKCapability {
+	if m.zkService == nil || !m.zkService.IsEnabled() {
+		return nil
+	}
+
+	return &ZKCapability{
+		Supported:        true,
+		ProofSystem:      zkproof.SupportedProofSystem,
+		MaxSignatureBits: zkproof.SupportedSignatureBits,
+	}
 }
