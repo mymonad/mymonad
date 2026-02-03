@@ -1,6 +1,6 @@
 # MyMonad
 
-Decentralized P2P matchmaking protocol for autonomous agents. Agents negotiate human compatibility through cryptographic proofs without exposing raw personal data.
+A privacy-preserving P2P protocol for similarity-based discovery. Peers find each other based on high-dimensional vector proximity without revealing their raw data.
 
 ## Quick Start
 
@@ -31,14 +31,42 @@ make build
 
 ## Overview
 
-MyMonad enables privacy-preserving compatibility matching between users via their AI agents. Each user's preferences are represented as a high-dimensional "Monad" embedding vector. Agents discover and evaluate potential matches using:
+### The Protocol
 
-- **Locality Sensitive Hashing (LSH)** for O(log n) similarity-based peer discovery
-- **5-stage handshake protocol** with progressive trust establishment
-- **Ed25519/X25519 cryptography** for identity and secure key exchange
-- **libp2p/Kademlia DHT** for decentralized networking
+MyMonad is a **decentralized protocol** for discovering peers with similar high-dimensional vectors while preserving privacy. The core primitive is the **Monad**: an embedding vector that represents some entity (a person, document, or concept) in mathematical form.
 
-No raw user data ever leaves the local device. Only cryptographic proofs and similarity scores are exchanged.
+The protocol provides:
+
+- **Privacy-preserving discovery** — Peers find similar others using Locality Sensitive Hashing (LSH), which reveals only coarse similarity buckets, not raw vectors
+- **Progressive trust establishment** — A multi-stage handshake where each stage must pass before proceeding, with zero data leakage on failure
+- **Spam resistance** — Load-adaptive proof-of-work that scales difficulty based on network conditions
+- **Optional ZK verification** — Zero-knowledge proofs can verify vector proximity without revealing the vectors themselves
+
+No raw data leaves the local device. Only cryptographic proofs and hashed signatures are exchanged.
+
+**Protocol Stack:**
+
+| Layer | Components |
+|-------|------------|
+| Discovery | LSH signatures, DHT buckets, commit-reveal exchange |
+| Trust | 5-stage handshake, progressive disclosure |
+| Security | Ed25519 identity, X25519 key exchange, AES-256-GCM |
+| Anti-Spam | Hashcash PoW, adaptive difficulty tiers (16→28 bits) |
+| Privacy | Zero-knowledge proofs (gnark/PlonK), constant-time comparisons |
+| Transport | libp2p streams, Kademlia DHT, mDNS |
+
+### The Application: Human Matchmaking
+
+The reference implementation uses this protocol for **autonomous matchmaking agents**. Each user's preferences, interests, and personality are encoded into a Monad vector via local LLM embeddings. Agents then:
+
+1. **Discover** similar peers via LSH bucket queries on the DHT
+2. **Handshake** through attestation, vector matching, and deal-breaker exchange
+3. **Chat** via end-to-end encrypted messaging (zero-persistence)
+4. **Unmask** with mutual consent to reveal identities
+
+The agent runs entirely on the user's device. Your Monad never leaves your machine—only its hashed signature participates in discovery.
+
+> **Design Documents:** Detailed technical specifications are available in [`docs/plans/`](docs/plans/) for [LSH Discovery](docs/plans/2026-02-02-lsh-discovery-design.md), [Human Chat](docs/plans/2026-02-02-human-chat-design.md), [Anti-Spam](docs/plans/2026-02-02-anti-spam-design.md), and [ZK Privacy](docs/plans/2026-02-02-zk-privacy-design.md).
 
 ## Origin of the Name
 
@@ -86,10 +114,13 @@ It is not a profile stored on a corporate server. It is a part of your digital s
 │  (P2P daemon)      │  (user interface) │  (data processing)     │
 ├─────────────────────────────────────────────────────────────────┤
 │                         Protocol Layer                          │
-│  Handshake FSM  │  Attestation  │  Vector Match  │  Messages    │
+│  Handshake FSM  │  Attestation  │  Vector Match  │  Human Chat  │
 ├─────────────────────────────────────────────────────────────────┤
 │                         Core Libraries                          │
-│  Monad (vectors)  │  LSH (hashing)  │  Hashcash (anti-spam)    │
+│  Monad (vectors)  │  LSH (hashing)  │  Hashcash  │  ZK Proofs   │
+├─────────────────────────────────────────────────────────────────┤
+│                         Services                                │
+│  Anti-Spam (adaptive PoW)  │  Chat (encrypted)  │  Discovery    │
 ├─────────────────────────────────────────────────────────────────┤
 │                         Infrastructure                          │
 │  Crypto (identity)  │  Agent (P2P)  │  IPC (local comms)       │
@@ -100,13 +131,17 @@ It is not a profile stored on a corporate server. It is a part of your digital s
 
 The 5-stage handshake establishes trust progressively:
 
-1. **Attestation** - Verify peer is a legitimate MyMonad agent (Hashcash PoW)
+1. **Attestation** - Verify peer is a legitimate MyMonad agent (load-adaptive Hashcash PoW)
 2. **Vector Match** - Compare embeddings against similarity threshold τ
 3. **Deal Breakers** - Exchange yes/no compatibility questions
-4. **Human Chat** - Optional direct encrypted conversation
+4. **Human Chat** - Direct encrypted conversation (AES-256-GCM, zero-persistence)
 5. **Unmask** - Mutual consent to reveal identities
 
 Each stage must pass before proceeding. Failure at any point terminates the handshake.
+
+**Optional Enhancements:**
+- **ZK Privacy** - Zero-knowledge proofs can verify LSH signature proximity without revealing actual signatures (gnark/PlonK with BN254 curve)
+- **Adaptive Difficulty** - Anti-spam PoW difficulty scales with load (16→20→24→28 bits)
 
 ## Installation
 
@@ -226,7 +261,22 @@ mdns_enabled = true
 
 [protocol]
 similarity_threshold = 0.85  # Minimum cosine similarity for match (0.0-1.0)
-challenge_difficulty = 16    # Hashcash proof-of-work bits
+
+[antispam]
+# Difficulty adapts automatically based on load (16→20→24→28 bits)
+# These thresholds control when escalation occurs
+window_duration = "1m"       # Sliding window for metrics
+cooldown_duration = "5m"     # Time before de-escalation
+elevated_rate_threshold = 10 # Requests/window to trigger elevated tier
+high_rate_threshold = 50     # Requests/window to trigger high tier
+critical_rate_threshold = 100 # Requests/window to trigger critical tier
+
+[zkproof]
+enabled = false              # Enable zero-knowledge proof exchanges
+require_zk = false           # Require ZK proofs from peers (reject non-ZK peers)
+prefer_zk = true             # Prefer ZK-capable peers during discovery
+max_distance = 64            # Maximum Hamming distance for proof verification
+proof_timeout = "30s"        # Timeout for proof generation/verification
 
 [storage]
 identity_path = "~/.local/share/mymonad/identity.key"
@@ -389,13 +439,20 @@ go test -v ./internal/crypto/...
 │   ├── monad/              # Core Monad type (affinity vectors)
 │   ├── protocol/           # Handshake state machine & messages
 │   ├── lsh/                # Locality Sensitive Hashing
-│   └── hashcash/           # Proof-of-work for anti-spam
+│   ├── hashcash/           # Proof-of-work mining & verification
+│   └── zkproof/            # Zero-knowledge proof circuits (gnark)
 ├── internal/               # Private implementation
 │   ├── agent/              # P2P networking (libp2p, DHT)
+│   ├── antispam/           # Load-adaptive PoW difficulty controller
+│   ├── chat/               # Encrypted messaging with zero-persistence
 │   ├── crypto/             # Identity & key management
+│   ├── discovery/          # LSH-based peer discovery & DHT
+│   ├── handshake/          # Handshake protocol implementation
 │   ├── ingest/             # File watching & processing
-│   └── ipc/                # Local IPC server
+│   ├── ipc/                # Local IPC server
+│   └── zkproof/            # ZK proof exchange protocol
 ├── api/proto/              # Protobuf definitions
+├── docs/plans/             # Technical design documents
 └── tests/                  # Integration tests
 ```
 
@@ -406,7 +463,12 @@ go test -v ./internal/crypto/...
 | `pkg/monad` | Affinity vector with running average updates and cosine similarity |
 | `pkg/protocol` | 5-stage handshake FSM with state transitions and message types |
 | `pkg/lsh` | Random hyperplane LSH for privacy-preserving similarity search |
-| `pkg/hashcash` | Proof-of-work challenge/response for spam prevention |
+| `pkg/hashcash` | Proof-of-work mining and verification for spam prevention |
+| `pkg/zkproof` | Zero-knowledge circuits for Hamming distance verification (gnark/PlonK) |
+| `internal/antispam` | Load-adaptive difficulty controller with tiered escalation |
+| `internal/chat` | Encrypted messaging with HKDF key derivation and zero-persistence |
+| `internal/discovery` | LSH-based peer discovery with commit-reveal protocol |
+| `internal/zkproof` | ZK proof exchange protocol and service integration |
 | `internal/crypto` | Ed25519 signing, X25519 key exchange, encrypted storage |
 | `internal/agent` | libp2p host, Kademlia DHT, peer discovery |
 
@@ -423,8 +485,11 @@ go test -v ./internal/crypto/...
 
 - Raw affinity vectors never transmitted
 - LSH signatures reveal only coarse similarity
+- Optional ZK proofs verify proximity without revealing signatures
 - Handshake can fail at any stage without data leakage
 - Zero persistence: conversation data purged after handshake completion
+- Sensitive memory (keys, plaintexts) explicitly zeroed after use
+- Constant-time cryptographic comparisons prevent timing attacks
 
 ## Contributing
 
