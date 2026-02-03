@@ -4,8 +4,8 @@
 package discovery
 
 import (
-	"bytes"
 	"crypto/sha256"
+	"crypto/subtle"
 )
 
 // DiscoveryError represents errors that can occur during the discovery protocol.
@@ -79,9 +79,10 @@ func verifyCommitment(commitment, signature, salt []byte) error {
 		return ErrMalformedSignature
 	}
 
-	// Compute and compare commitment
+	// Compute and compare commitment using constant-time comparison
+	// to prevent timing side-channel attacks
 	expected := computeCommitment(signature, salt)
-	if !bytes.Equal(commitment, expected) {
+	if subtle.ConstantTimeCompare(commitment, expected) != 1 {
 		return ErrCommitmentMismatch
 	}
 

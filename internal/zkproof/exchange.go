@@ -35,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	pb "github.com/mymonad/mymonad/api/proto"
@@ -176,8 +177,10 @@ func (zk *ZKExchange) InitiateExchange(
 		mySignature,
 		zk.config.MaxDistance,
 	); err != nil {
-		// Send rejection before returning error
-		sendZKResult(stream, &pb.ZKProofResult{Valid: false, Error: err.Error()})
+		// Send rejection before returning error (log if send fails)
+		if sendErr := sendZKResult(stream, &pb.ZKProofResult{Valid: false, Error: err.Error()}); sendErr != nil {
+			slog.Warn("failed to send ZK rejection result", "error", sendErr)
+		}
 		return fmt.Errorf("peer proof invalid: %w", err)
 	}
 
@@ -263,7 +266,10 @@ func (zk *ZKExchange) HandleExchange(
 		mySignature,
 		request.MaxDistance,
 	); err != nil {
-		sendZKResult(stream, &pb.ZKProofResult{Valid: false, Error: err.Error()})
+		// Send rejection before returning error (log if send fails)
+		if sendErr := sendZKResult(stream, &pb.ZKProofResult{Valid: false, Error: err.Error()}); sendErr != nil {
+			slog.Warn("failed to send ZK rejection result", "error", sendErr)
+		}
 		return fmt.Errorf("peer proof invalid: %w", err)
 	}
 

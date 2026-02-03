@@ -64,13 +64,22 @@ func (s *ChatSession) handleMessage(msg *pb.ChatMessage) {
 	s.lastActivity = time.Now()
 	s.mu.Unlock()
 
-	// Notify callback
+	// Notify callback with a copy of plaintext
+	// The original plaintext is owned by StoredMessage and will be zeroed on cleanup
 	if s.onMessage != nil {
+		// Make a copy for the callback to prevent callers from holding references
+		// to sensitive data that may be zeroed later
+		callbackPlaintext := make([]byte, len(plaintext))
+		copy(callbackPlaintext, plaintext)
+
 		s.onMessage(&ReceivedMessage{
 			ID:         msg.MessageId,
-			Plaintext:  plaintext,
+			Plaintext:  callbackPlaintext,
 			ReceivedAt: time.Now(),
 		})
+
+		// Zero the callback copy after use - callers should not retain references
+		zeroFill(callbackPlaintext)
 	}
 }
 

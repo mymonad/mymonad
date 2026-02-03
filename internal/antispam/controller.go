@@ -206,15 +206,11 @@ func (dc *DifficultyController) GetCurrentTier() DifficultyTier {
 // GetMetrics returns the current request rate (count in window) and failure rate.
 // This is useful for monitoring and debugging.
 func (dc *DifficultyController) GetMetrics() (rate int, failureRate float64) {
-	dc.mu.RLock()
-	defer dc.mu.RUnlock()
-
-	// Evict stale records first (need write lock for this)
-	dc.mu.RUnlock()
 	dc.mu.Lock()
+	defer dc.mu.Unlock()
+
+	// Evict stale records first
 	dc.evictStale(time.Now())
-	dc.mu.Unlock()
-	dc.mu.RLock()
 
 	return dc.getMetricsLocked()
 }
