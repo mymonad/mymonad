@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package mymonad.pow;
+
+option go_package = "github.com/mymonad/mymonad/api/proto";
+
+// PoWChallenge is sent by the verifier to the prover during Stage 1 (Attestation).
+// The challenge parameters are determined by the load-adaptive difficulty controller.
+message PoWChallenge {
+  // Random server nonce (16 bytes)
+  // Used to bind the challenge to this specific request and prevent precomputation
+  bytes nonce = 1;
+
+  // Unix milliseconds when the challenge was created
+  // Challenges expire after a configured timeout (typically 30 seconds)
+  int64 timestamp = 2;
+
+  // Required number of leading zero bits in the solution hash
+  // Valid values: 16 (easy), 20 (normal), 24 (hard), 28 (very hard)
+  // Higher values require exponentially more computation
+  uint32 difficulty = 3;
+
+  // Verifier's libp2p peer ID
+  // Binds the challenge to this specific verifier, preventing relay attacks
+  bytes peer_id = 4;
+}
+
+// PoWSolution is sent by the prover in response to a PoWChallenge.
+// The prover must find a counter value that produces a hash with sufficient leading zeros.
+message PoWSolution {
+  // Echo of the challenge nonce
+  // Must match the nonce from the original challenge
+  bytes challenge_nonce = 1;
+
+  // Echo of the challenge timestamp
+  // Must match the timestamp from the original challenge
+  int64 challenge_timestamp = 2;
+
+  // Counter value that produces a valid hash
+  // The prover increments this until SHA-256(nonce || timestamp || peer_id || counter)
+  // has the required number of leading zero bits
+  uint64 counter = 3;
+
+  // The computed proof: SHA-256(nonce || timestamp || peer_id || counter)
+  // Must have at least 'difficulty' leading zero bits (32 bytes)
+  bytes proof = 4;
+}
+
+// PoWResult indicates the verification outcome of a PoWSolution.
+// Sent by the verifier to inform the prover whether the solution was accepted.
+message PoWResult {
+  // True if the solution is valid and the prover may proceed
+  bool valid = 1;
+
+  // Error code if validation failed. Possible values:
+  // - "expired": Challenge timestamp is too old (> configured timeout)
+  // - "invalid_nonce": Challenge nonce doesn't match any pending challenge
+  // - "insufficient_difficulty": Solution doesn't meet required difficulty
+  // - "hash_mismatch": Proof doesn't match SHA-256(nonce || timestamp || peer_id || counter)
+  string error = 2;
+}
