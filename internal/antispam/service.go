@@ -19,6 +19,7 @@ package antispam
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	pb "github.com/mymonad/mymonad/api/proto"
@@ -33,6 +34,8 @@ type AntiSpamService struct {
 	controller *DifficultyController
 	nonceStore *NonceStore
 
+	// callbackMu protects onTierChange from concurrent access.
+	callbackMu sync.RWMutex
 	// onTierChange is an optional callback invoked when the difficulty tier changes.
 	// This can be used for metrics export or logging.
 	onTierChange func(tier DifficultyTier)
@@ -122,13 +125,21 @@ func (as *AntiSpamService) GetCurrentTier() DifficultyTier {
 // This can be used for metrics export or logging.
 // Pass nil to remove the callback.
 func (as *AntiSpamService) SetOnTierChange(callback func(tier DifficultyTier)) {
+	as.callbackMu.Lock()
+	defer as.callbackMu.Unlock()
 	as.onTierChange = callback
 }
 
 // checkTierChange invokes the tier change callback if the tier has changed.
 func (as *AntiSpamService) checkTierChange(previousTier DifficultyTier) {
 	currentTier := as.controller.GetCurrentTier()
-	if currentTier != previousTier && as.onTierChange != nil {
-		as.onTierChange(currentTier)
+	if currentTier != previousTier {
+		// Read callback under lock, call outside lock (avoids blocking if callback is slow)
+		as.callbackMu.RLock()
+		cb := as.onTierChange
+		as.callbackMu.RUnlock()
+		if cb != nil {
+			cb(currentTier)
+		}
 	}
 }

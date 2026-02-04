@@ -114,7 +114,15 @@ type ZKExchange struct {
 // The prover is used to generate proofs of our signature's proximity.
 // The verifier is used to verify proofs from the peer.
 // The config provides exchange parameters like timeout and max distance.
+//
+// Panics if prover or verifier is nil.
 func NewZKExchange(prover ProverInterface, verifier VerifierInterface, config ZKConfig) *ZKExchange {
+	if prover == nil {
+		panic("zkproof: prover cannot be nil")
+	}
+	if verifier == nil {
+		panic("zkproof: verifier cannot be nil")
+	}
 	return &ZKExchange{
 		prover:   prover,
 		verifier: verifier,
@@ -235,6 +243,13 @@ func (zk *ZKExchange) HandleExchange(
 	request, err := readZKRequest(stream)
 	if err != nil {
 		return fmt.Errorf("receive request: %w", err)
+	}
+
+	// Validate peer's MaxDistance doesn't exceed our config
+	// (prevents malicious peers from bypassing proximity requirements)
+	if request.MaxDistance > zk.config.MaxDistance {
+		return fmt.Errorf("peer MaxDistance %d exceeds our limit %d",
+			request.MaxDistance, zk.config.MaxDistance)
 	}
 
 	// 2. Generate our proof against peer's signature

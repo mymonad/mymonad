@@ -85,10 +85,13 @@ func (s *ChatSession) SendMessage(text string) ([]byte, error) {
 	}
 	s.storeMessageLocked(stored)
 
-	// Track pending ACK
+	// Track pending ACK with a separate copy of plaintext
+	// (StoredMessage owns the original; eviction would corrupt shared reference)
+	pendingPlaintext := make([]byte, len(plaintextBytes))
+	copy(pendingPlaintext, plaintextBytes)
 	s.pendingAcks[hex.EncodeToString(messageID)] = &PendingMessage{
 		ID:        messageID,
-		Plaintext: plaintextBytes,
+		Plaintext: pendingPlaintext,
 		SentAt:    time.Now(),
 		Retries:   0,
 	}

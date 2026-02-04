@@ -77,7 +77,14 @@ type ChatService struct {
 //   - handshakeMgr: The handshake manager for accessing session data
 //
 // Returns a new ChatService instance.
+// Panics if host or handshakeMgr is nil.
 func NewChatService(host StreamOpener, handshakeMgr HandshakeManagerProvider) *ChatService {
+	if host == nil {
+		panic("chat: host cannot be nil")
+	}
+	if handshakeMgr == nil {
+		panic("chat: handshakeMgr cannot be nil")
+	}
 	return &ChatService{
 		sessions:     make(map[string]*ChatSession),
 		host:         host,

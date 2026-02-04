@@ -204,3 +204,77 @@ func TestZKService_MetricsConcurrency(t *testing.T) {
 	assert.Equal(t, expectedCount, verified)
 	assert.Equal(t, expectedCount, failed)
 }
+
+func TestZKConfig_Validate(t *testing.T) {
+	t.Run("disabled_config_always_valid", func(t *testing.T) {
+		config := ZKConfig{Enabled: false}
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("valid_enabled_config", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.Enabled = true
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid_proof_timeout", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.Enabled = true
+		config.ProofTimeout = 0
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "proof_timeout")
+	})
+
+	t.Run("invalid_max_distance_zero", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.Enabled = true
+		config.MaxDistance = 0
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "max_distance")
+	})
+
+	t.Run("invalid_max_distance_exceeds_limit", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.Enabled = true
+		config.MaxDistance = 257
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "max_distance")
+	})
+
+	t.Run("invalid_prover_workers", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.Enabled = true
+		config.ProverWorkers = 0
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "prover_workers")
+	})
+}
+
+func TestZKConfig_String(t *testing.T) {
+	t.Run("disabled_config", func(t *testing.T) {
+		config := ZKConfig{Enabled: false}
+		str := config.String()
+		assert.Contains(t, str, "Enabled: false")
+	})
+
+	t.Run("enabled_config", func(t *testing.T) {
+		config := ZKConfig{
+			Enabled:      true,
+			RequireZK:    true,
+			PreferZK:     false,
+			MaxDistance:  64,
+			ProofTimeout: 30 * time.Second,
+		}
+		str := config.String()
+		assert.Contains(t, str, "Enabled: true")
+		assert.Contains(t, str, "RequireZK: true")
+		assert.Contains(t, str, "PreferZK: false")
+		assert.Contains(t, str, "MaxDistance: 64")
+	})
+}

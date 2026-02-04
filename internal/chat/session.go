@@ -175,7 +175,9 @@ func (s *ChatSession) Cleanup() {
 
 	// Close stream
 	if s.stream != nil {
-		s.stream.Close()
+		if err := s.stream.Close(); err != nil {
+			slog.Warn("chat: failed to close stream during cleanup", "error", err)
+		}
 		s.stream = nil
 	}
 

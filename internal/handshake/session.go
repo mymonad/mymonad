@@ -4,6 +4,7 @@ package handshake
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -141,7 +142,9 @@ func (s *Session) Cleanup() {
 
 	// Close stream if open
 	if s.Stream != nil {
-		s.Stream.Close()
+		if err := s.Stream.Close(); err != nil {
+			slog.Warn("handshake: failed to close stream during cleanup", "error", err)
+		}
 		s.Stream = nil
 	}
 }

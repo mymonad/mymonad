@@ -59,6 +59,7 @@ type SessionInfo struct {
 }
 
 // NewManager creates a new handshake manager.
+// The host parameter may be nil for testing purposes when host features are not used.
 func NewManager(h host.Host, cfg ManagerConfig) *Manager {
 	return &Manager{
 		host:        h,

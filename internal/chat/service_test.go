@@ -1128,3 +1128,31 @@ func TestListSessions_WithSessions_ReturnsAll(t *testing.T) {
 		t.Errorf("expected 2 sessions, got %d", len(sessions))
 	}
 }
+
+// ============================================================================
+// Nil validation tests
+// ============================================================================
+
+func TestNewChatService_NilHost_Panics(t *testing.T) {
+	mgr := newMockHandshakeManager()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("NewChatService should panic when host is nil")
+		}
+	}()
+
+	NewChatService(nil, mgr)
+}
+
+func TestNewChatService_NilHandshakeManager_Panics(t *testing.T) {
+	host := newMockHost()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("NewChatService should panic when handshakeMgr is nil")
+		}
+	}()
+
+	NewChatService(host, nil)
+}

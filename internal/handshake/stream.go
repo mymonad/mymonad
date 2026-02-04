@@ -56,7 +56,9 @@ func (h *StreamHandler) handleStream(s network.Stream) {
 	if !h.manager.CanInitiate(peerID) {
 		h.logger.Warn("rejecting handshake, cooldown active", "peer", peerID.String())
 		h.sendReject(s, "cooldown active")
-		s.Close()
+		if err := s.Close(); err != nil {
+			h.logger.Warn("failed to close stream after rejection", "error", err)
+		}
 		return
 	}
 
