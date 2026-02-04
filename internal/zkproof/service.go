@@ -72,17 +72,17 @@ func DefaultZKConfig() ZKConfig {
 
 // Validate checks the configuration for errors.
 // Returns an error describing any invalid configuration values.
+// All fields are validated regardless of Enabled state, so configs
+// can be safely enabled later without re-validation.
 func (c ZKConfig) Validate() error {
-	if c.Enabled {
-		if c.ProofTimeout <= 0 {
-			return fmt.Errorf("zkconfig: proof_timeout must be positive")
-		}
-		if c.MaxDistance == 0 || c.MaxDistance > 256 {
-			return fmt.Errorf("zkconfig: max_distance must be between 1 and 256")
-		}
-		if c.ProverWorkers <= 0 {
-			return fmt.Errorf("zkconfig: prover_workers must be positive")
-		}
+	if c.ProofTimeout <= 0 {
+		return fmt.Errorf("zkconfig: proof_timeout must be positive")
+	}
+	if c.MaxDistance == 0 || c.MaxDistance > 256 {
+		return fmt.Errorf("zkconfig: max_distance must be between 1 and 256")
+	}
+	if c.ProverWorkers <= 0 {
+		return fmt.Errorf("zkconfig: prover_workers must be positive")
 	}
 	return nil
 }

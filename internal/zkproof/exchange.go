@@ -248,8 +248,13 @@ func (zk *ZKExchange) HandleExchange(
 	// Validate peer's MaxDistance doesn't exceed our config
 	// (prevents malicious peers from bypassing proximity requirements)
 	if request.MaxDistance > zk.config.MaxDistance {
-		return fmt.Errorf("peer MaxDistance %d exceeds our limit %d",
+		errMsg := fmt.Sprintf("MaxDistance %d exceeds our limit %d",
 			request.MaxDistance, zk.config.MaxDistance)
+		// Notify peer of rejection before returning error
+		if sendErr := sendZKResult(stream, &pb.ZKProofResult{Valid: false, Error: errMsg}); sendErr != nil {
+			slog.Warn("failed to send MaxDistance rejection to peer", "error", sendErr)
+		}
+		return fmt.Errorf("peer %s", errMsg)
 	}
 
 	// 2. Generate our proof against peer's signature

@@ -824,6 +824,80 @@ func TestNewZKExchange_NilVerifier(t *testing.T) {
 	}, "NewZKExchange should panic when verifier is nil")
 }
 
+func TestZKExchange_HandleExchange_AcceptsEqualMaxDistance(t *testing.T) {
+	// Test boundary condition: peer's MaxDistance equals our limit (should be accepted)
+	prover := &mockProver{
+		generateProofFunc: func(mySig, peerSig []byte, maxDist uint32) (*ProofResult, error) {
+			return &ProofResult{
+				Proof:      []byte("responder-proof"),
+				Commitment: []byte("responder-commitment"),
+			}, nil
+		},
+	}
+	verifier := &mockVerifier{}
+
+	config := ZKConfig{
+		MaxDistance:  64,
+		ProofTimeout: 5 * time.Second,
+	}
+	exchange := NewZKExchange(prover, verifier, config)
+
+	initiatorStream, responderStream := newPipeStreamPair()
+
+	mySignature := makeTestSignature(0x02)
+	peerSignature := makeTestSignature(0x01)
+
+	// Simulate initiator with MaxDistance equal to our limit
+	initiatorDone := make(chan error, 1)
+	go func() {
+		req := &pb.ZKProofRequest{
+			MaxDistance: 64, // Equal to our limit - should be accepted
+			Commitment:  []byte("initiator-commitment"),
+			Signature:   peerSignature,
+		}
+		if err := writeZKRequest(initiatorStream, req); err != nil {
+			initiatorDone <- err
+			return
+		}
+
+		// Read response
+		resp, err := readZKResponse(initiatorStream)
+		if err != nil {
+			initiatorDone <- err
+			return
+		}
+		assert.Equal(t, []byte("responder-proof"), resp.Proof)
+
+		// Send our proof
+		ourResponse := &pb.ZKProofResponse{
+			Proof:      []byte("initiator-proof"),
+			Commitment: []byte("initiator-commitment"),
+			Signature:  peerSignature,
+		}
+		if err := writeZKResponse(initiatorStream, ourResponse); err != nil {
+			initiatorDone <- err
+			return
+		}
+
+		// Read result
+		result, err := readZKResult(initiatorStream)
+		if err != nil {
+			initiatorDone <- err
+			return
+		}
+
+		assert.True(t, result.Valid, "exchange should succeed when MaxDistance equals our limit")
+		initiatorDone <- nil
+	}()
+
+	// Run responder - should succeed because MaxDistance equals our limit
+	ctx := context.Background()
+	err := exchange.HandleExchange(ctx, responderStream, mySignature)
+	require.NoError(t, err, "HandleExchange should succeed when peer MaxDistance equals our limit")
+
+	require.NoError(t, <-initiatorDone)
+}
+
 func TestZKExchange_HandleExchange_RejectsExcessiveMaxDistance(t *testing.T) {
 	// Create mock prover and verifier (default implementations are fine)
 	prover := &mockProver{}
@@ -840,14 +914,29 @@ func TestZKExchange_HandleExchange_RejectsExcessiveMaxDistance(t *testing.T) {
 	initiatorStream, responderStream := newPipeStreamPair()
 
 	// Send a request with MaxDistance = 128 (exceeds our 64)
+	initiatorDone := make(chan error, 1)
 	go func() {
 		req := &pb.ZKProofRequest{
 			MaxDistance: 128, // Higher than our limit of 64
 			Commitment:  []byte("peer-commitment"),
 			Signature:   make([]byte, 32),
 		}
-		writeZKRequest(initiatorStream, req)
-		initiatorStream.Close()
+		if err := writeZKRequest(initiatorStream, req); err != nil {
+			initiatorDone <- err
+			return
+		}
+
+		// Read rejection result - peer should notify us of the rejection
+		result, err := readZKResult(initiatorStream)
+		if err != nil {
+			initiatorDone <- err
+			return
+		}
+
+		// Verify the rejection was received
+		assert.False(t, result.Valid)
+		assert.Contains(t, result.Error, "exceeds our limit")
+		initiatorDone <- nil
 	}()
 
 	// Responder should reject because MaxDistance exceeds our config
@@ -856,4 +945,7 @@ func TestZKExchange_HandleExchange_RejectsExcessiveMaxDistance(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds our limit")
+
+	// Verify initiator received the rejection
+	require.NoError(t, <-initiatorDone)
 }

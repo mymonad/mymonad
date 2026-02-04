@@ -206,8 +206,10 @@ func TestZKService_MetricsConcurrency(t *testing.T) {
 }
 
 func TestZKConfig_Validate(t *testing.T) {
-	t.Run("disabled_config_always_valid", func(t *testing.T) {
-		config := ZKConfig{Enabled: false}
+	t.Run("valid_disabled_config", func(t *testing.T) {
+		// Validation applies to all fields regardless of Enabled state
+		config := DefaultZKConfig()
+		config.Enabled = false
 		err := config.Validate()
 		assert.NoError(t, err)
 	})
@@ -219,10 +221,17 @@ func TestZKConfig_Validate(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("invalid_proof_timeout", func(t *testing.T) {
+	t.Run("invalid_proof_timeout_zero", func(t *testing.T) {
 		config := DefaultZKConfig()
-		config.Enabled = true
 		config.ProofTimeout = 0
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "proof_timeout")
+	})
+
+	t.Run("invalid_proof_timeout_negative", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.ProofTimeout = -5 * time.Second
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "proof_timeout")
@@ -230,29 +239,53 @@ func TestZKConfig_Validate(t *testing.T) {
 
 	t.Run("invalid_max_distance_zero", func(t *testing.T) {
 		config := DefaultZKConfig()
-		config.Enabled = true
 		config.MaxDistance = 0
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "max_distance")
 	})
 
+	t.Run("valid_max_distance_boundary_256", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.MaxDistance = 256 // Maximum valid value
+		err := config.Validate()
+		assert.NoError(t, err)
+	})
+
 	t.Run("invalid_max_distance_exceeds_limit", func(t *testing.T) {
 		config := DefaultZKConfig()
-		config.Enabled = true
 		config.MaxDistance = 257
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "max_distance")
 	})
 
-	t.Run("invalid_prover_workers", func(t *testing.T) {
+	t.Run("invalid_prover_workers_zero", func(t *testing.T) {
 		config := DefaultZKConfig()
-		config.Enabled = true
 		config.ProverWorkers = 0
 		err := config.Validate()
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "prover_workers")
+	})
+
+	t.Run("invalid_prover_workers_negative", func(t *testing.T) {
+		config := DefaultZKConfig()
+		config.ProverWorkers = -1
+		err := config.Validate()
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "prover_workers")
+	})
+
+	t.Run("validates_disabled_config_fields", func(t *testing.T) {
+		// Even disabled configs must have valid field values
+		config := ZKConfig{
+			Enabled:       false,
+			ProofTimeout:  0, // Invalid
+			MaxDistance:   64,
+			ProverWorkers: 2,
+		}
+		err := config.Validate()
+		assert.Error(t, err, "disabled config with invalid fields should fail validation")
 	})
 }
 
@@ -276,5 +309,6 @@ func TestZKConfig_String(t *testing.T) {
 		assert.Contains(t, str, "RequireZK: true")
 		assert.Contains(t, str, "PreferZK: false")
 		assert.Contains(t, str, "MaxDistance: 64")
+		assert.Contains(t, str, "Timeout: 30s")
 	})
 }
